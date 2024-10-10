@@ -3,12 +3,6 @@ import argparse
 from data_converter import nuscenes_converter as nuscenes_converter
 from data_converter.create_gt_database import create_groundtruth_database
 
-# import debugpy
-# debugpy.listen(8088)
-# print("Wait for debugger...")
-# debugpy.wait_for_client()
-# print("Debugger attached")
-
 
 def nuscenes_data_prep(
     root_path,
@@ -18,7 +12,7 @@ def nuscenes_data_prep(
     out_dir,
     max_sweeps=10,
     load_augmented=None,
-    reduce_ratio=30,
+    reduce_ratio=0.3,
 ):
     """Prepare data related to nuScenes dataset.
 
@@ -53,7 +47,7 @@ def nuscenes_data_prep(
         dataset_name,
         root_path,
         info_prefix,
-        f"{out_dir}/{info_prefix}_reduced{reduce_ratio}_infos_train_v1.pkl",
+        f"{out_dir}/{info_prefix}_reduced{reduce_ratio}_infos_train.pkl",
         load_augmented=load_augmented,
     )
 
@@ -88,7 +82,7 @@ parser.add_argument(
     help="name of info pkl",
 )
 parser.add_argument("--extra-tag", type=str, default="kitti")
-parser.add_argument("--reduce-ratio", type=int, default=30)
+parser.add_argument("--reduce-ratio", type=float, default=0.3)
 parser.add_argument("--painted", default=False, action="store_true")
 parser.add_argument("--virtual", default=False, action="store_true")
 parser.add_argument(
