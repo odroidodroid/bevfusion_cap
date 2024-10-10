@@ -304,12 +304,12 @@ def _fill_trainval_infos(nusc,
             # we need to convert rot to SECOND format.
             gt_boxes = np.concatenate([locs, dims, -rots - np.pi / 2], axis=1)
             assert len(gt_boxes) == len(
-                annotations), f'{len(gt_boxes)}, {len(annotations)}'
+                annotations
+            ), f"{len(gt_boxes)}, {len(annotations)}"
             info['gt_boxes'] = gt_boxes
             info['gt_names'] = names
             info['gt_velocity'] = velocity.reshape(-1, 2)
-            info['num_lidar_pts'] = np.array(
-                [a['num_lidar_pts'] for a in annotations])
+            info['num_lidar_pts'] = np.array([a['num_lidar_pts'] for a in annotations])
             info['valid_flag'] = valid_flag
 
         if info['prev_token'] != '' :
