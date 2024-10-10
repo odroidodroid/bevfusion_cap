@@ -187,7 +187,7 @@ def _fill_trainval_infos(nusc,
     scene_frame_num.append(cnt)
 
     reduced_frame_num = [math.ceil(reduce_ratio * num_i) for num_i in scene_frame_num]
-    selected_frame_range = [np.linspace(0, scene_frame_num[i]-1, reduced_frame_num[i], dtype=int) for i in range(len(scene_frame_num))]
+    selected_frame_range = [np.linspace(0, scene_frame_num[i]-1, reduced_frame_num[i], dtype=int) for i in range(len(scene_frame_num))].tolist()
     
     prev_scene_token = ''
     prev_token_ = ''
@@ -199,7 +199,7 @@ def _fill_trainval_infos(nusc,
             if prev_scene_token != sample['scene_token'] :
                 scene += 1
                 cnt = 0
-        if cnt not in selected_frame_range[scene].tolist() :
+        if cnt not in selected_frame_range[scene] :
             cnt += 1
             continue
         else :
@@ -285,7 +285,7 @@ def _fill_trainval_infos(nusc,
             )
             valid_flag = np.array(
                 [
-                    (anno["num_lidar_pts"]) > 0
+                    (anno["num_lidar_pts"] + anno["num_radar_pts"]) > 0
                     for anno in annotations
                 ],
                 dtype=bool,

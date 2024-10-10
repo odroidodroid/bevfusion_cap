@@ -266,6 +266,7 @@ data:
       type: ${dataset_type}
       dataset_root: ${dataset_root}
       ann_file: ${dataset_root + "nuscenes_infos_train.pkl"}
+      #ann_file: ${dataset_root + "nuscenes_reduced0.3_infos_train.pkl"}
       pipeline: ${train_pipeline}
       object_classes: ${object_classes}
       map_classes: ${map_classes}
@@ -277,6 +278,7 @@ data:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
     ann_file: ${dataset_root + "nuscenes_infos_val.pkl"}
+    #ann_file: ${dataset_root + "nuscenes_reduced0.3_infos_val.pkl"}
     pipeline: ${test_pipeline}
     object_classes: ${object_classes}
     map_classes: ${map_classes}
@@ -287,6 +289,7 @@ data:
     type: ${dataset_type}
     dataset_root: ${dataset_root}
     ann_file: ${dataset_root + "nuscenes_infos_val.pkl"}
+    #ann_file: ${dataset_root + "nuscenes_reduced0.3_infos_val.pkl"}
     pipeline: ${test_pipeline}
     object_classes: ${object_classes}
     map_classes: ${map_classes}

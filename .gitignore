@@ -131,3 +131,7 @@ dmypy.json
 mmcv/*
 mmdet/*
 pretrained/*
+data/*
+mmdet3d/models/fusion_models/bevfusion.py
+.vscode/
+runs/
