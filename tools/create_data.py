@@ -47,7 +47,7 @@ def nuscenes_data_prep(
         dataset_name,
         root_path,
         info_prefix,
-        f"{out_dir}/{info_prefix}_reduced{reduce_ratio}_infos_train.pkl",
+        f"{out_dir}/{info_prefix}_infos_train.pkl",
         load_augmented=load_augmented,
     )
 
@@ -97,7 +97,7 @@ if __name__ == "__main__":
             load_augmented = "mvp"
         else:
             load_augmented = "pointpainting"
-
+    args.extra_tag = args.extra_tag + "_reduced{}".format(args.reduce_ratio)
     if args.dataset == "nuscenes" and args.version != "v1.0-mini":
         train_version = f"{args.version}-trainval"
         nuscenes_data_prep(
