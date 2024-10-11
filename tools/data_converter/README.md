@@ -25,7 +25,21 @@ nuscenes_reduced0.1_infos_val.pkl
 --data.val.ann_file=data/nuscenes/nuscenes_reduced0.1_infos_val.pkl
 </code></pre>
 <h3 id="test-bevfusion-with-reduced-dataset">Test BEVFusion with reduced dataset</h3>
-<p>you should modify your configs/nuscenes/default.yaml when you run test in BEVFusion. And run command just</p>
+<p>you should modify your configs/nuscenes/default.yaml when you run test in BEVFusion.</p>
+<pre><code>data : 
+	test:
+		type: ${dataset_type}
+		dataset_root: ${dataset_root}
+		ann_file: ${dataset_root + "nuscenes_reduced0.1_infos_val.pkl"}
+		pipeline: ${test_pipeline}
+		object_classes: ${object_classes}
+		map_classes: ${map_classes}
+		modality: ${input_modality}
+		test_mode: true
+		box_type_3d: LiDAR
+		reduce_ratio : 0.1
+</code></pre>
+<p>and run command</p>
 <pre><code>$ torchpack dist-run -np 1 python tools/test.py configs/nuscenes/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml pretrained/bevfusion-det.pth --eval bbox
 </code></pre>
 <blockquote>
