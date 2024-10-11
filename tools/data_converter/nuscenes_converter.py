@@ -187,23 +187,21 @@ def _fill_trainval_infos(nusc,
     scene_frame_num.append(cnt)
 
     reduced_frame_num = [math.ceil(reduce_ratio * num_i) for num_i in scene_frame_num]
-    selected_frame_range = [np.linspace(0, scene_frame_num[i]-1, reduced_frame_num[i], dtype=int) for i in range(len(scene_frame_num))].tolist()
+    selected_frame_range = [np.linspace(0, scene_frame_num[i]-1, reduced_frame_num[i], dtype=int).tolist() for i in range(len(scene_frame_num))]
     
     prev_scene_token = ''
     prev_token_ = ''
     for sample in mmcv.track_iter_progress(nusc.sample):
         if prev_scene_token == '' :
             scene = 0
-            cnt = 0
+            cnt = -1
         else :
             if prev_scene_token != sample['scene_token'] :
                 scene += 1
-                cnt = 0
+                cnt = -1
+        cnt += 1
         if cnt not in selected_frame_range[scene] :
-            cnt += 1
             continue
-        else :
-            cnt += 1
 
         prev_scene_token = sample['scene_token']
         lidar_token = sample['data']['LIDAR_TOP']
