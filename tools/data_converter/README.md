@@ -1,8 +1,3 @@
----
-
-
----
-
 <h1 id="create-reduced-dataset">Create Reduced Dataset</h1>
 <h3 id="run-command-reduce-ratio--0.1">Run command (reduce ratio = 0.1)</h3>
 <p>modify reduce-ratio that you want</p>
@@ -44,3 +39,5 @@ nuscenes_reduced0.1_infos_val.pkl
 </code></pre>
 <h3 id="tips-for-configuring-lr-and-warmup-iterations">Tips for configuring lr and warmup iterations</h3>
 <img width="515" alt="lr_config_tips" src="https://github.com/user-attachments/assets/330dbc08-863f-4879-a9f3-5a3ebe427103">
+<h3 id="experiments">Experiments</h3>
+<img width="1449" alt="reduced_dataset_table" src="https://github.com/user-attachments/assets/63b9f8d5-c3e0-41f4-bf3a-6a13386726a7">
