@@ -42,7 +42,6 @@ nuscenes_reduced0.1_infos_val.pkl
 <p>and run command</p>
 <pre><code>$ torchpack dist-run -np 1 python tools/test.py configs/nuscenes/det/transfusion/secfpn/camera+lidar/swint_v0p075/convfuser.yaml pretrained/bevfusion-det.pth --eval bbox
 </code></pre>
-<blockquote>
-<p>Written with <a href="https://stackedit.io/">StackEdit</a>.</p>
-</blockquote>
+<h3 id="tips-for-configuring-lr-and-warmup-iterations">Tips for configuring lr and warmup iterations</h3>
+<p><img src="https://drive.google.com/file/d/1EpR7U2WOAzZQwM2pc_KZCP9ugQV6QuWO/view?usp=sharing" alt="lr config"></p>
 
