@@ -18,11 +18,11 @@ from mmdet.apis import multi_gpu_test, set_random_seed
 from mmdet.datasets import replace_ImageToTensor
 from mmdet3d.utils import recursive_eval
 
-
 def parse_args():
     parser = argparse.ArgumentParser(description="MMDet test (and eval) a model")
     parser.add_argument("config", help="test config file path")
     parser.add_argument("checkpoint", help="checkpoint file")
+    parser.add_argument("--out-dir", help="output result in json format")
     parser.add_argument("--out", help="output result file in pickle format")
     parser.add_argument(
         "--fuse-conv-bn",
@@ -95,7 +95,7 @@ def parse_args():
         help="job launcher",
     )
     parser.add_argument("--local_rank", type=int, default=0)
-    args = parser.parse_args()
+    args, opts = parser.parse_known_args()
     if "LOCAL_RANK" not in os.environ:
         os.environ["LOCAL_RANK"] = str(args.local_rank)
 
@@ -107,11 +107,11 @@ def parse_args():
     if args.options:
         warnings.warn("--options is deprecated in favor of --eval-options")
         args.eval_options = args.options
-    return args
+    return args, opts
 
 
 def main():
-    args = parse_args()
+    args, opts = parse_args()
     dist.init()
 
     torch.backends.cudnn.benchmark = True
@@ -130,6 +130,7 @@ def main():
         raise ValueError("The output file must be a pkl file.")
 
     configs.load(args.config, recursive=True)
+    configs.update(opts)
     cfg = Config(recursive_eval(configs), filename=args.config)
     print(cfg)
 
@@ -223,7 +224,8 @@ def main():
             ]:
                 eval_kwargs.pop(key, None)
             eval_kwargs.update(dict(metric=args.eval, **kwargs))
-            print(dataset.evaluate(outputs, **eval_kwargs))
+            results = dataset.evaluate(outputs, **eval_kwargs)
+            mmcv.dump(results, args.out_dir)
 
 
 if __name__ == "__main__":
