@@ -432,7 +432,7 @@ class NuScenesDataset(Custom3DDataset):
             "v1.0-mini": "mini_val",
             "v1.0-trainval": "val",
         }
-        if self.reduce_ratio != 0 :
+        if self.reduce_ratio != 0 or self.reduce_ratio != 1:
              nusc_eval = DetectionEvalforReducedData(
                 nusc,
                 info_path=self.ann_file,
