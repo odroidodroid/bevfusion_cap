@@ -22,6 +22,7 @@ search_space = {
     "model.encoders.camera.vtransform.zbound": encoder_camera_vtransform_zbound,
     "model.encoders.camera.backbone.depth": encoder_camera_backbone_depth,
     "model.encoders.camera.backbone.out_indices": encoder_camera_backbone_out_indices,
+    "model.encoders.camera.backbone.init_cfg": encoder_camera_backbone_init_cfg,
     "model.encoders.camera.neck.in_channels": encoder_camera_neck_in_channels,
     "model.encoders.lidar.backbone.encoder_channels": encoder_lidar_backbone_encoder_channels,
     "model.encoders.lidar.backbone.encoder_paddings": encoder_lidar_backbone_encoder_paddings,
@@ -31,13 +32,16 @@ search_space = {
 
 def resolve_dependencies(key, chromosome) -> list:
     args = []
-    if key == "model.encoders.camera.neck.in_channels":
+    if key == "model.encoders.camera.vtransform.ybound":
+        xbound = chromosome["model.encoders.camera.vtransform.xbound"]
+        args = [xbound]
+    elif key == "model.encoders.camera.backbone.init_cfg":
+        depth = chromosome["model.encoders.camera.backbone.depth"]
+        args = [depth]
+    elif key == "model.encoders.camera.neck.in_channels":
         depth = chromosome["model.encoders.camera.backbone.depth"]
         out_indices = chromosome["model.encoders.camera.backbone.out_indices"]
         args = [depth, out_indices]
-    elif key == "model.encoders.camera.vtransform.ybound":
-        xbound = chromosome["model.encoders.camera.vtransform.xbound"]
-        args = [xbound]
     elif key == "model.encoders.lidar.backbone.encoder_paddings":
         encoder_channels = chromosome["model.encoders.lidar.backbone.encoder_channels"]
         args = [encoder_channels]

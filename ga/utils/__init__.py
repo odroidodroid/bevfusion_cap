@@ -34,3 +34,12 @@ def get_map(run_dir):
 
     logger.warning("No matching mAP found in the JSON file.")
     return 0.0
+
+
+def deep_update(original: dict, updates: dict) -> dict:
+    for key, value in updates.items():
+        if isinstance(value, dict) and key in original:
+            deep_update(original[key], value)
+        else:
+            original[key] = value
+    return original

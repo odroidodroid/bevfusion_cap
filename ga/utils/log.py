@@ -27,7 +27,7 @@ logger.addHandler(file_handler)
 logger.addHandler(stream_handler)
 
 
-def write_stds(process):
+def write_stds(process, log: bool = False):
     with process.stdout as stdout, process.stderr as stderr:
         while True:
             reads = [stdout.fileno(), stderr.fileno()]
@@ -36,11 +36,13 @@ def write_stds(process):
                 if fd == stdout.fileno():
                     line = stdout.readline()
                     if line:
-                        logger.info(line.decode('utf-8').strip())
+                        output = line.decode('utf-8').strip()
+                        (logger.info if log else print)(output)
                 if fd == stderr.fileno():
                     line = stderr.readline()
                     if line:
-                        logger.error(line.decode('utf-8').strip())
+                        output = line.decode('utf-8').strip()
+                        (logger.error if log else print)(output)
             if process.poll() is not None:
                 break
 

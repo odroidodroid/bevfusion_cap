@@ -9,8 +9,9 @@ from deap import algorithms, base, creator, tools
 
 from ga.genes import (chromosome_default_resnet, chromosome_minidataset,
                       chromosome_to_config_dict, generate_chromosome)
-from ga.utils import (configs, get_map, load_checkpoint, logger,
+from ga.utils import (configs, deep_update, get_map, load_checkpoint, logger,
                       save_checkpoint, write_stds)
+
 random.seed(64)
 
 
@@ -40,11 +41,10 @@ class GA:
         run_dir = os.path.join(configs.PROJECT_DIR, name)
         os.makedirs(run_dir, exist_ok=True)
 
-        config_dir = "configs/nuscenes/det/transfusion/secfpn/camera+lidar/resnet50"
-        config_dict = chromosome_default_resnet() # TODO fix bug: no fuser
-        config_dict.update(chromosome_to_config_dict(individual))
-        config_dict.update(chromosome_minidataset())
-        config_path = os.path.join(config_dir, f"{name}.yaml")
+        config_dict = chromosome_default_resnet()
+        deep_update(config_dict, chromosome_to_config_dict(individual))
+        deep_update(config_dict['data'], chromosome_minidataset())
+        config_path = os.path.join(run_dir, f"{name}.yaml")
         with open(config_path, 'w') as f:
             yaml.dump(config_dict, f)
 
@@ -65,13 +65,16 @@ class GA:
 
         process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        logger.info(f"Started process {process.pid}")
         write_stds(process)
-        # os.kill(process.pid, signal.SIGTERM)
+        # TODO: check loss and early stop
+        # os.kill(process.pid, signal.SIGTERM); import signal
         exitcode = process.wait()
-        os.remove(config_path)
+        # os.remove(config_path)
 
         self.current_ind += 1
         if exitcode != 0:
+            logger.error(f"Process {process.pid} failed with exit code {exitcode}")
             return 100000, 0
 
         # get mAP
@@ -110,7 +113,7 @@ class GA:
         # which one is better?
         # algorithms.eaMuPlusLambda(pop, self.toolbox, MU, LAMBDA, CXPB, MUTPB, NGEN, stats, halloffame=hof)
         for gen in range(configs.NGEN):
-            logger.info(f"Generation {gen}")
+            logger.info(f"================== Generation {gen} ==================")
             self.current_gen = gen
             self.current_ind = 0
 
@@ -119,8 +122,8 @@ class GA:
             )
 
             save_checkpoint(pop, hof, logbook, gen)
-            logger.info(f"Best individual is {hof[0]}")
-            logger.info(f"with fitness: {hof[0].fitness.values}")
+            logger.info(f"============ Best individual is {hof[0]} ============")
+            logger.info(f"============ with fitness: {hof[0].fitness.values} ============")
 
         return hof[0]
 
