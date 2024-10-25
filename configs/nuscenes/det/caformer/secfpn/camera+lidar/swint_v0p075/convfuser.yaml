@@ -1,0 +1,21 @@
+model:
+  fuser:
+    type: ConvFuser
+    in_channels: [80, 256]
+    out_channels: 256
+
+data:
+  samples_per_gpu: 2
+  workers_per_gpu: 2
+
+# lr_config:
+#   policy: CosineAnnealing
+#   warmup: linear
+#   warmup_iters: 61790
+#   warmup_ratio: 0.33333333
+#   min_lr_ratio: 1.0e-3
+
+# optimizer:
+#   lr: 2.0e-4
+
+max_epochs: 10

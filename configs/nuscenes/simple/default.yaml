@@ -1,0 +1,7 @@
+dataset_type: NuScenesSimBEVDataset
+model:
+  type: SimpleBEV
+  encoders: null
+  fuser: null
+  heads:
+    map: null
