@@ -34,6 +34,7 @@ class GA:
         self.toolbox = toolbox
 
     def evalKnapsack(self, individual):
+        logger.info(f"================== Individual {self.current_ind} ==================")
         logger.info(f"{individual=}")
 
         # make dir with gen and individual id(idx of population)
@@ -75,14 +76,16 @@ class GA:
         self.current_ind += 1
         if exitcode != 0:
             logger.error(f"Process {process.pid} failed with exit code {exitcode}")
-            return 100000, 0
+            latency, mAP = 10000, 0
+        else:
+            # evaluate latency
+            latency = 1000  # TODO: nvtx to get latency
 
-        # get mAP
-        mAP = get_map(run_dir)
+            # get mAP
+            mAP = get_map(run_dir)
 
-        # evaluate latency
-        latency = 1000  # TODO: nvtx to get latency
-
+        logger.info(f"gen_{self.current_gen}_ind_{self.current_ind} mAP: {mAP} latency: {latency}")
+        logger.info(f"======================================================")
         return latency, mAP
 
     def cxSet(self, ind1, ind2):
@@ -130,5 +133,15 @@ class GA:
 
 if __name__ == '__main__':
     ga = GA()
-    best = ga.search()
+    try:
+        best = ga.search()
+    except KeyboardInterrupt as e:
+        logger.info("============ Search has been terminated by user ============")
+    finally:
+        logger.info("============ Search has been terminated ============")
+        logger.info("============ Best individual is ============")
+        logger.info(best)
+        logger.info(f"============ with fitness: {best.fitness.values} ============")
+        logger.info("============ Search has been terminated ============")
+        logger.info(f"============ Time: {datetime.now()} ============")
     print("done")
