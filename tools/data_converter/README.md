@@ -1,8 +1,3 @@
----
-
-
----
-
 <h1 id="create-reduced-dataset">Create Reduced Dataset</h1>
 <h3 id="run-command-reduce-ratio--0.1">Run command (reduce ratio = 0.1)</h3>
 <p>modify reduce-ratio that you want</p>
@@ -34,4 +29,6 @@ pretrained/bevfusion-det.pth \
 --eval bbox
 </code></pre>
 <h3 id="tips-for-configuring-lr-and-warmup-iterations">Tips for configuring lr and warmup iterations</h3>
+<img width="515" alt="lr_config_tips" src="https://github.com/user-attachments/assets/e563a98d-cb4f-423f-9f9d-a4d197c3c283">
 
+<img width="1449" alt="reduced_dataset_table" src="https://github.com/user-attachments/assets/c1f1681f-f4f9-4321-ab51-7c4899230678">
