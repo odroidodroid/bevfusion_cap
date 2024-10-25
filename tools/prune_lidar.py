@@ -15,7 +15,7 @@ from mmdet3d.apis import train_model
 from mmdet3d.datasets import build_dataset
 from mmdet3d.models import build_model
 from mmdet3d.utils import get_root_logger, convert_sync_batchnorm, recursive_eval
-
+from prune.prune_model import prune_model
 # import debugpy
 # debugpy.listen(8807)
 # print("Wait for debugger...")
@@ -31,6 +31,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", metavar="FILE", help="config file")
     parser.add_argument("--run-dir", metavar="DIR", help="run directory")
+    
     args, opts = parser.parse_known_args()
 
     configs.load(args.config, recursive=True)
@@ -81,8 +82,10 @@ def main():
         model = convert_sync_batchnorm(model, exclude=cfg["sync_bn"]["exclude"])
 
     logger.info(f"Model:\n{model}")
-    train_model(
+        
+    prune_model(
         model,
+        None,
         datasets,
         cfg,
         distributed=True,
