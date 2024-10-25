@@ -11,11 +11,11 @@ from torchpack import distributed as dist
 from torchpack.environ import auto_set_run_dir, set_run_dir
 from torchpack.utils.config import configs
 
-from mmdet3d.apis import train_model
 from mmdet3d.datasets import build_dataset
 from mmdet3d.models import build_model
 from mmdet3d.utils import get_root_logger, convert_sync_batchnorm, recursive_eval
-
+from prune.spartan.sparsifier import SparsifierConfig, Sparsifier
+from prune.prune_model import prune_model
 # import debugpy
 # debugpy.listen(8807)
 # print("Wait for debugger...")
@@ -31,6 +31,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", metavar="FILE", help="config file")
     parser.add_argument("--run-dir", metavar="DIR", help="run directory")
+    parser.add_argument("--total-iters", type=int, default=123580)
+    
     args, opts = parser.parse_known_args()
 
     configs.load(args.config, recursive=True)
@@ -81,8 +83,16 @@ def main():
         model = convert_sync_batchnorm(model, exclude=cfg["sync_bn"]["exclude"])
 
     logger.info(f"Model:\n{model}")
-    train_model(
+    
+    pruner_cfg = SparsifierConfig()
+    pruner = Sparsifier(model=model.encoders.camera.backbone,
+                        config=pruner_cfg,
+                        total_iters=args.total_iters,
+                        verbose=True)
+    
+    prune_model(
         model,
+        pruner,
         datasets,
         cfg,
         distributed=True,
