@@ -59,7 +59,7 @@ data:
     type: ${dataset_type}
   workers_per_gpu: 2
 dataset_root: data/nuscenes/
-dataset_type: NuScenesSimBEVDataset
+dataset_type: NuScenesDataset
 deterministic: false
 evaluation:
   interval: 1
@@ -79,7 +79,7 @@ input_modality:
   use_radar: false
 load_augmented: null
 load_dim: 5
-load_from: null
+load_from: pretrained/lidar-only-det.pth
 log_config:
   hooks:
   - type: TextLoggerHook
@@ -163,14 +163,23 @@ model:
           requires_grad: true
           type: BN2d
         num_outs: 3
-        out_channels: 128
+        out_channels: 256
         start_level: 0
         type: GeneralizedLSSFPN
         upsample_cfg:
           align_corners: false
           mode: bilinear
       vtransform:
-        type: None
+        dbound:
+        - 1.0
+        - 60.0
+        - 0.5
+        downsample: 2
+        feature_size: ${[image_size[0] // 8, image_size[1] // 8]}
+        image_size: ${image_size}
+        in_channels: 256
+        out_channels: 80
+        type: DepthLSSTransform
         xbound:
         - -54.0
         - 54.0
@@ -179,6 +188,10 @@ model:
         - -54.0
         - 54.0
         - 0.3
+        zbound:
+        - -10.0
+        - 10.0
+        - 20.0
     lidar:
       backbone:
         block_type: basicblock
@@ -228,7 +241,7 @@ model:
         voxel_size: ${voxel_size}
   fuser:
     in_channels:
-    - 128
+    - 80
     - 256
     out_channels: 256
     type: ConvFuser
@@ -342,7 +355,7 @@ model:
         pos_weight: -1
         voxel_size: ${voxel_size}
       type: TransFusionHead
-  type: SimpleBEV
+  type: BEVFusion
 momentum_config:
   policy: cyclic
 object_classes:
@@ -357,7 +370,7 @@ object_classes:
 - pedestrian
 - traffic_cone
 optimizer:
-  lr: 0.0002
+  lr: 1.0e-05
   type: AdamW
   weight_decay: 0.01
 optimizer_config:
@@ -418,6 +431,17 @@ test_pipeline:
   - 0.0
   trans_lim: 0.0
   type: GlobalRotScaleTrans
+- classes: ${map_classes}
+  dataset_root: ${dataset_root}
+  type: LoadBEVSegmentation
+  xbound:
+  - -50.0
+  - 50.0
+  - 0.5
+  ybound:
+  - -50.0
+  - 50.0
+  - 0.5
 - point_cloud_range: ${point_cloud_range}
   type: PointsRangeFilter
 - mean:
@@ -436,6 +460,7 @@ test_pipeline:
   - points
   - gt_bboxes_3d
   - gt_labels_3d
+  - gt_masks_bev
   meta_keys:
   - camera_intrinsics
   - camera2ego
@@ -445,9 +470,6 @@ test_pipeline:
   - lidar2image
   - img_aug_matrix
   - lidar_aug_matrix
-  - rots
-  - trans
-  - intrins
   type: Collect3D
 train_pipeline:
 - to_float32: true
@@ -522,6 +544,17 @@ train_pipeline:
   rot_lim: ${augment3d.rotate}
   trans_lim: ${augment3d.translate}
   type: GlobalRotScaleTrans
+- classes: ${map_classes}
+  dataset_root: ${dataset_root}
+  type: LoadBEVSegmentation
+  xbound:
+  - -50.0
+  - 50.0
+  - 0.5
+  ybound:
+  - -50.0
+  - 50.0
+  - 0.5
 - type: RandomFlip3D
 - point_cloud_range: ${point_cloud_range}
   type: PointsRangeFilter
@@ -556,6 +589,7 @@ train_pipeline:
   - points
   - gt_bboxes_3d
   - gt_labels_3d
+  - gt_masks_bev
   meta_keys:
   - camera_intrinsics
   - camera2ego
@@ -565,9 +599,6 @@ train_pipeline:
   - lidar2image
   - img_aug_matrix
   - lidar_aug_matrix
-  - rots
-  - trans
-  - intrins
   type: Collect3D
 use_dim: 5
 voxel_size:
