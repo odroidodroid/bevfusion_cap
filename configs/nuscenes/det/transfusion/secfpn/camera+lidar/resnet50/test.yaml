@@ -1,0 +1,45 @@
+model:
+  fuser:
+    type: ConvFuser
+    in_channels: [80, 256]
+    out_channels: 256
+
+optimizer:
+  lr: 1.0e-5
+
+data:
+  samples_per_gpu: 2
+  workers_per_gpu: 2
+  train:
+    type: CBGSDataset
+    dataset:
+      type: ${dataset_type}
+      dataset_root: ${dataset_root}
+      ann_file: ${dataset_root + "mini_infos_train.pkl"}
+      pipeline: ${train_pipeline}
+      object_classes: ${object_classes}
+      map_classes: ${map_classes}
+      modality: ${input_modality}
+      test_mode: false
+      use_valid_flag: true
+      box_type_3d: LiDAR
+  val:
+    type: ${dataset_type}
+    dataset_root: ${dataset_root}
+    ann_file: ${dataset_root + "mini_infos_val.pkl"}
+    pipeline: ${test_pipeline}
+    object_classes: ${object_classes}
+    map_classes: ${map_classes}
+    modality: ${input_modality}
+    test_mode: false
+    box_type_3d: LiDAR
+  test:
+    type: ${dataset_type}
+    dataset_root: ${dataset_root}
+    ann_file: ${dataset_root + "mini_infos_val.pkl"}
+    pipeline: ${test_pipeline}
+    object_classes: ${object_classes}
+    map_classes: ${map_classes}
+    modality: ${input_modality}
+    test_mode: true
+    box_type_3d: LiDAR

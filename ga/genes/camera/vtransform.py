@@ -25,7 +25,9 @@ def encoder_camera_vtransform_xbound():
     return [-bound, bound, interval]
 
 
-def encoder_camera_vtransform_ybound(xbound):
+def encoder_camera_vtransform_ybound(xbound: list = None):
+    if xbound is None:
+        raise ValueError("Vtransform ybound requires encoder_camera_vtransform_xbound")
     # same as encoder_camera_vtransform_xbound
     return copy.deepcopy(xbound)
 
