@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 
 current_time = datetime.now().strftime("%y%m%d-%H%M%S")
@@ -9,3 +10,5 @@ MU = 50     # population size
 LAMBDA = 100
 CXPB = 0.7  # crossover probability
 MUTPB = 0.2 # mutation probability
+RESULT_FILE_PATH = os.path.join(PROJECT_DIR, "ga_results.json")
+

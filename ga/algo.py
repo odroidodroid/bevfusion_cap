@@ -1,38 +1,42 @@
-from deap import tools
-from deap.algorithms import varAnd
 import subprocess
-from ga.utils import write_stds, logger, get_map
 
-def custom_eaSimple(population, toolbox, cxpb, mutpb, ngen, k=None, stats=None,
+from deap import tools
+from deap.algorithms import varAnd, varOr
+
+from ga.utils import configs, get_map, logger, save_checkpoint, write_stds
+
+
+def custom_eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen, stats=None,
                    halloffame=None, verbose=__debug__) :
+    
     logbook = tools.Logbook()
     logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
 
     # Evaluate the individuals with an invalid fitness
-    # invalid_ind = [ind for ind in population if not ind.fitness.valid]
-    fitnesses = toolbox.map(toolbox.evaluate, population) ## 수정
+    invalid_ind = [ind for ind in population if not ind.fitness.valid]
+    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
     for ind, fit in zip(invalid_ind, fitnesses):
         ind.fitness.values = fit
 
     if halloffame is not None:
         halloffame.update(population)
 
-    record = stats.compile(population) if stats else {}
+    record = stats.compile(population) if stats is not None else {}
     logbook.record(gen=0, nevals=len(invalid_ind), **record)
     if verbose:
         print(logbook.stream)
-
+            
     # Begin the generational process
     for gen in range(1, ngen + 1):
-        # Select the next generation individuals
-        offspring = toolbox.select(population, k)
 
-        # Vary the pool of individuals
-        offspring = varAnd(offspring, toolbox, cxpb, mutpb)
+        logger.info(f"================== Generation {gen} ==================")
+
+        # Vary the population
+        offspring = varOr(population, toolbox, lambda_, cxpb, mutpb)
 
         # Evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
+        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, range(1, len(invalid_ind)+1), [gen]*len(invalid_ind))
         for ind, fit in zip(invalid_ind, fitnesses):
             ind.fitness.values = fit
 
@@ -40,16 +44,20 @@ def custom_eaSimple(population, toolbox, cxpb, mutpb, ngen, k=None, stats=None,
         if halloffame is not None:
             halloffame.update(offspring)
 
-        # Replace the current population by the offspring
-        population[:] = population + offspring
+        # Select the next generation population
+        population[:] = toolbox.select(population + offspring, mu)
 
-        # Append the current generation statistics to the logbook
-        record = stats.compile(population) if stats else {}
+        # Update the statistics with the new population
+        record = stats.compile(population) if stats is not None else {}
         logbook.record(gen=gen, nevals=len(invalid_ind), **record)
         if verbose:
             print(logbook.stream)
         
-        
+        save_checkpoint(population, halloffame, logbook, gen)
+
+        logger.info(f"============ Best individual is {halloffame[0]} ============")
+        logger.info(f"============ with fitness: {halloffame[0].fitness.values} ============")
+
     return population, logbook
 
 def run_model(config_path, run_dir) :
@@ -85,4 +93,5 @@ def run_model(config_path, run_dir) :
             # evaluate latency
             latency = 1000  # TODO: nvtx to get latency
 
-    return get_map(run_dir), latency
+    mAP = get_map(run_dir)
+    return latency, mAP

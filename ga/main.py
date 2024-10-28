@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import subprocess
@@ -7,11 +8,12 @@ import numpy
 import yaml
 from deap import algorithms, base, creator, tools
 
+from ga.algo import custom_eaMuPlusLambda, run_model
 from ga.genes import (chromosome_default_resnet, chromosome_minidataset,
                       chromosome_to_config_dict, generate_chromosome)
 from ga.utils import (configs, deep_update, get_map, load_checkpoint, logger,
                       save_checkpoint, write_stds)
-from ga.algo import run_model, custom_eaSimple
+
 random.seed(64)
 
 
@@ -33,12 +35,12 @@ class GA:
 
         self.toolbox = toolbox
 
-    def evalKnapsack(self, individual):
-        logger.info(f"================== Individual {self.current_ind} ==================")
+    def evalKnapsack(self, individual, ind_idx, gen_idx):
+        logger.info(f"================== Individual {ind_idx} ==================")
         logger.info(f"{individual=}")
 
         # make dir with gen and individual id(idx of population)
-        name = f"gen_{self.current_gen}_ind_{self.current_ind}"
+        name = f"gen_{gen_idx}_ind_{ind_idx}"
         run_dir = os.path.join(configs.PROJECT_DIR, name)
         os.makedirs(run_dir, exist_ok=True)
 
@@ -54,17 +56,16 @@ class GA:
 
         # save results
         ind_results = {
-            'chromosome' : individual,
+            'gen' : gen_idx,
+            'ind' : ind_idx,
             'latency' : latency,
             'accuracy' : mAP
-        }        
-        config_dict.update(ind_results)
-        with open(config_path, 'w') as f :
-            yaml.dump(config_dict, f)
+        }
+        
+        with open(configs.RESULT_FILE_PATH, 'w') as f :
+            json.dump(ind_results, f)
 
-        self.current_ind += 1
-
-        logger.info(f"gen_{self.current_gen}_ind_{self.current_ind} mAP: {mAP} latency: {latency}")
+        logger.info(f"gen_{gen_idx}_ind_{ind_idx} mAP: {mAP} latency: {latency}")
         logger.info(f"======================================================")
         return latency, mAP
 
@@ -93,19 +94,20 @@ class GA:
         stats.register("min", numpy.min, axis=0)
         stats.register("max", numpy.max, axis=0)
 
+        os.makedirs(configs.RESULT_FILE_PATH, exist_ok=False)
+
         # which one is better?
         # algorithms.eaMuPlusLambda(pop, self.toolbox, MU, LAMBDA, CXPB, MUTPB, NGEN, stats, halloffame=hof)
-        for gen in range(configs.NGEN):
-            logger.info(f"================== Generation {gen} ==================")
-            self.current_gen = gen
-            self.current_ind = 0
-
-            pop, logbook = custom_eaSimple(
-                pop, self.toolbox, cxpb=configs.CXPB, mutpb=configs.MUTPB, ngen=1, stats=stats, halloffame=hof, verbose=True
-            )
-
-            logger.info(f"============ Best individual is {hof[0]} ============")
-            logger.info(f"============ with fitness: {hof[0].fitness.values} ============")
+        pop, logbook = custom_eaMuPlusLambda(pop, 
+                                             self.toolbox, 
+                                             mu=configs.MU,
+                                             lambda_=configs.LAMBDA,
+                                             cxpb=configs.CXPB, 
+                                             mutpb=configs.MUTPB, 
+                                             ngen=configs.NGEN, 
+                                             stats=stats, 
+                                             halloffame=hof, 
+                                             verbose=True)
 
         return hof[0]
 
