@@ -14,7 +14,7 @@ def custom_eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen, s
 
     # Evaluate the individuals with an invalid fitness
     invalid_ind = [ind for ind in population if not ind.fitness.valid]
-    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, range(1, len(invalid_ind)+1), [0]*len(invalid_ind))
+    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, range(0, len(invalid_ind)), [0]*len(invalid_ind))
     for ind, fit in zip(invalid_ind, fitnesses):
         ind.fitness.values = fit
 
@@ -33,10 +33,9 @@ def custom_eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen, s
 
         # Vary the population
         offspring = varOr(population, toolbox, lambda_, cxpb, mutpb)
-
         # Evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, range(1, len(invalid_ind)+1), [gen]*len(invalid_ind))
+        fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, range(0, len(invalid_ind)), [gen]*len(invalid_ind))
         for ind, fit in zip(invalid_ind, fitnesses):
             ind.fitness.values = fit
 
@@ -62,8 +61,8 @@ def custom_eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen, s
 
 def run_model(config_path, run_dir) :
     
-    conda_env = "bevfusion"
-    conda_activate = f"conda activate {conda_env}"
+    # conda_env = "bevfusion"
+    # conda_activate = f"conda activate {conda_env}"
     run = [
         "torchpack",
         "dist-run",
@@ -74,7 +73,8 @@ def run_model(config_path, run_dir) :
         "--load_from=pretrained/lidar-only-det.pth",
         f"--run-dir={run_dir}",
     ]
-    cmd = f"{conda_activate}; {' '.join(run)}"
+    # cmd = f"{conda_activate}; {' '.join(run)}"
+    cmd = f"{' '.join(run)}"
     logger.info(f"{cmd=}")
 
     process = subprocess.Popen(

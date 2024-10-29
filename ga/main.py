@@ -16,6 +16,11 @@ from ga.utils import (configs, deep_update, get_map, load_checkpoint, logger,
 
 random.seed(64)
 
+import debugpy
+debugpy.listen(8807)
+print("Wait for debugger...")
+debugpy.wait_for_client()
+print("Debugger attached")
 
 class GA:
     def __init__(self):
@@ -94,8 +99,6 @@ class GA:
         stats.register("min", numpy.min, axis=0)
         stats.register("max", numpy.max, axis=0)
 
-        # which one is better?
-        # algorithms.eaMuPlusLambda(pop, self.toolbox, MU, LAMBDA, CXPB, MUTPB, NGEN, stats, halloffame=hof)
         pop, logbook = custom_eaMuPlusLambda(pop, 
                                              self.toolbox, 
                                              mu=configs.MU,
