@@ -33,12 +33,13 @@ parameters = {
 search_space = {
     "image_size": image_size,
     "model.encoders.camera.vtransform.xbound": encoder_camera_vtransform_xbound,
-    "model.encoders.camera.backbone.init_cfg": encoder_camera_backbone_init_cfg,
-    "model.encoders.camera.neck.in_channels": encoder_camera_neck_in_channels,
-    "model.encoders.lidar.backbone.encoder_paddings": encoder_lidar_backbone_encoder_paddings,
+    "model.encoders.camera.backbone.depth": encoder_camera_backbone_depth,
+    "model.encoders.camera.backbone.out_indices": encoder_camera_backbone_out_indices,
+    "model.encoders.lidar.backbone.encoder_channels": encoder_lidar_backbone_encoder_channels,
 }
 
-
+dependent = {key: val for key, val in parameters.items() if key not in search_space}
+ 
 def resolve_dependencies(key, chromosome) -> list:
     args = []
     if key == "model.encoders.camera.vtransform.ybound":
@@ -58,7 +59,6 @@ def resolve_dependencies(key, chromosome) -> list:
     else:
         pass
     return args
-    "model.encoders.lidar.backbone.output_channels": encoder_lidar_backbone_output_channels,
 
 
 def generate_chromosome() -> dict:
@@ -79,7 +79,7 @@ def cross_over(chr1, chr2):
     child1 = {}
     child2 = {}
     keys = list(ind1.keys())
-    points = sorted(random.sample(range(1, len(ind1)), 2)
+    points = sorted(random.sample(range(1, len(ind1)), 2))
     points = [0] + points + [len(ind1)]
     
     for i in range(len(points)-1):
@@ -92,8 +92,9 @@ def cross_over(chr1, chr2):
                 child1[keys[j]] = ind2[keys[j]]
                 child2[keys[j]] = ind1[keys[j]]
     
-    child1.update(parameters)
-    child2.update(parameters)
+    child1.update(dependent)
+    child2.update(dependent)
+
     for key, val in child1.items():
         if isinstance(val, types.Functiontypes):
             args = resolve_dependencies(key, child1)
@@ -111,7 +112,13 @@ def mutation(chromosome):
     point = random.randint(0, len(keys)-1)
     
     chromosome[keys[point]] = generate_chromosome()[keys[point]]
+    chromosome.update(dependent)
     
+    for key, val in chromosome.items():
+        if isinstance(val, types.Functiontypes):
+            args = resolve_dependencies(key, chromosome)
+            chromosome[key] = val(*args)
+ 
     return chromosome   
 
 def chromosome_to_config(chromosome) -> list:

@@ -48,8 +48,8 @@ class GA:
         with open(config_path, 'w') as f:
             yaml.dump(config_dict, f)
 
-        conda_env = "bevfusion"
-        conda_activate = f"conda activate {conda_env}"
+        #conda_env = "bevfusion"
+        #conda_activate = f"conda activate {conda_env}"
         run = [
             "torchpack",
             "dist-run",
@@ -60,7 +60,8 @@ class GA:
             "--load_from=pretrained/lidar-only-det.pth",
             f"--run-dir={run_dir}",
         ]
-        cmd = f"{conda_activate}; {' '.join(run)}"
+        #cmd = f"{conda_activate}; {' '.join(run)}"
+        cmd = f"{' '.join(run)}"
         logger.info(f"{cmd=}")
 
         process = subprocess.Popen(
