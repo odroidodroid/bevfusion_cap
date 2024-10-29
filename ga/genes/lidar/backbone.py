@@ -12,7 +12,9 @@ def encoder_lidar_backbone_encoder_channels():
         random.choice(stage4_list)
     ]
 
-def encoder_lidar_backbone_encoder_paddings(channels):
+def encoder_lidar_backbone_encoder_paddings(channels: list = None):
+    if channels is None:
+        raise ValueError("Encoder paddings requires encoder_lidar_backbone_encoder")
     # depends on encoder_lidar_backbone_encoder_channels
     paddings = {
         '[16, 32]': [0, 1],
