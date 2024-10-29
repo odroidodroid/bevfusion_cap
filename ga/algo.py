@@ -14,7 +14,7 @@ def custom_eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen, s
 
     # Evaluate the individuals with an invalid fitness
     invalid_ind = [ind for ind in population if not ind.fitness.valid]
-    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind)
+    fitnesses = toolbox.map(toolbox.evaluate, invalid_ind, range(1, len(invalid_ind)+1), [0]*len(invalid_ind))
     for ind, fit in zip(invalid_ind, fitnesses):
         ind.fitness.values = fit
 

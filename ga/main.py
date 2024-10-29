@@ -12,7 +12,7 @@ from ga.algo import custom_eaMuPlusLambda, run_model
 from ga.genes import (chromosome_default_resnet, chromosome_minidataset,
                       chromosome_to_config_dict, generate_chromosome)
 from ga.utils import (configs, deep_update, get_map, load_checkpoint, logger,
-                      save_checkpoint, write_stds)
+                      save_checkpoint, save_results, write_stds)
 
 random.seed(64)
 
@@ -56,14 +56,14 @@ class GA:
 
         # save results
         ind_results = {
-            'gen' : gen_idx,
-            'ind' : ind_idx,
+            'gen_idx' : gen_idx,
+            'ind_idx' : ind_idx,
             'latency' : latency,
-            'accuracy' : mAP
+            'accuracy' : mAP,
+            'chomosome' : individual
         }
         
-        with open(configs.RESULT_FILE_PATH, 'w') as f :
-            json.dump(ind_results, f)
+        save_results(configs.RESULT_FILE_PATH, ind_results)
 
         logger.info(f"gen_{gen_idx}_ind_{ind_idx} mAP: {mAP} latency: {latency}")
         logger.info(f"======================================================")
@@ -93,8 +93,6 @@ class GA:
         stats.register("std", numpy.std, axis=0)
         stats.register("min", numpy.min, axis=0)
         stats.register("max", numpy.max, axis=0)
-
-        os.makedirs(configs.RESULT_FILE_PATH, exist_ok=False)
 
         # which one is better?
         # algorithms.eaMuPlusLambda(pop, self.toolbox, MU, LAMBDA, CXPB, MUTPB, NGEN, stats, halloffame=hof)
