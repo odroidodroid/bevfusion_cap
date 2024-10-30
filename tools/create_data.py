@@ -12,7 +12,7 @@ def nuscenes_data_prep(
     out_dir,
     max_sweeps=10,
     load_augmented=None,
-    reduce_ratio=0.3,
+    reduce_ratio=1.0,
 ):
     """Prepare data related to nuScenes dataset.
 
@@ -82,7 +82,7 @@ parser.add_argument(
     help="name of info pkl",
 )
 parser.add_argument("--extra-tag", type=str, default="kitti")
-parser.add_argument("--reduce-ratio", type=float, default=0.3)
+parser.add_argument("--reduce-ratio", type=float, default=1.0)
 parser.add_argument("--painted", default=False, action="store_true")
 parser.add_argument("--virtual", default=False, action="store_true")
 parser.add_argument(
@@ -97,7 +97,8 @@ if __name__ == "__main__":
             load_augmented = "mvp"
         else:
             load_augmented = "pointpainting"
-    args.extra_tag = args.extra_tag + "_reduced{}".format(args.reduce_ratio)
+    if args.reduce_ratio < 1.0:
+        args.extra_tag = args.extra_tag + f"_reduced{args.reduce_ratio}"
     if args.dataset == "nuscenes" and args.version != "v1.0-mini":
         train_version = f"{args.version}-trainval"
         nuscenes_data_prep(
