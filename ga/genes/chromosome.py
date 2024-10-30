@@ -5,6 +5,7 @@ from .camera import *
 from .lidar import *
 from .default import *
 
+from deap import creator
 
 """
 # Define the search space
@@ -94,13 +95,11 @@ def cross_over(chr1, chr2):
     
     child1.update(dependent)
     child2.update(dependent)
-
     for key, val in child1.items():
-        if isinstance(val, types.Functiontypes):
+        if isinstance(val, types.FunctionType):
             args = resolve_dependencies(key, child1)
             child1[key] = val(*args)
-
-    return child1, child2
+    return creator.Individual(child1), creator.Individual(child2)
       
 def mutation(chromosome):
     ind = {}
@@ -110,16 +109,15 @@ def mutation(chromosome):
     
     keys = list(ind.keys())
     point = random.randint(0, len(keys)-1)
-    
+ 
     chromosome[keys[point]] = generate_chromosome()[keys[point]]
     chromosome.update(dependent)
     
     for key, val in chromosome.items():
-        if isinstance(val, types.Functiontypes):
+        if isinstance(val, types.FunctionType):
             args = resolve_dependencies(key, chromosome)
             chromosome[key] = val(*args)
- 
-    return chromosome   
+    return creator.Individual(chromosome),   
 
 def chromosome_to_config(chromosome) -> list:
     # deprecated
