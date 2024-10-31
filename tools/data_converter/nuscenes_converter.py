@@ -1,3 +1,4 @@
+import json
 import math
 import os
 from collections import OrderedDict
@@ -14,30 +15,14 @@ import mmcv
 from mmdet3d.core.bbox.box_np_ops import points_cam2img
 from mmdet3d.datasets import NuScenesDataset
 
-nus_categories = (
-    "car",
-    "truck",
-    "trailer",
-    "bus",
-    "construction_vehicle",
-    "bicycle",
-    "motorcycle",
-    "pedestrian",
-    "traffic_cone",
-    "barrier",
-)
+nus_categories = ('car', 'truck', 'trailer', 'bus', 'construction_vehicle',
+                  'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone',
+                  'barrier')
 
-nus_attributes = (
-    "cycle.with_rider",
-    "cycle.without_rider",
-    "pedestrian.moving",
-    "pedestrian.standing",
-    "pedestrian.sitting_lying_down",
-    "vehicle.moving",
-    "vehicle.parked",
-    "vehicle.stopped",
-    "None",
-)
+nus_attributes = ('cycle.with_rider', 'cycle.without_rider',
+                  'pedestrian.moving', 'pedestrian.standing',
+                  'pedestrian.sitting_lying_down', 'vehicle.moving',
+                  'vehicle.parked', 'vehicle.stopped', 'None')
 
 
 def create_nuscenes_infos(root_path,
@@ -45,9 +30,6 @@ def create_nuscenes_infos(root_path,
                           version='v1.0-trainval',
                           max_sweeps=10, 
                           prune_cfg=None):
-def create_nuscenes_infos(
-    root_path, info_prefix, version="v1.0-trainval", max_sweeps=10, reduce_ratio=1.0
-):
     """Create info file of nuscene dataset.
 
     Given the raw data, generate its related info file in pkl format.
@@ -103,14 +85,6 @@ def create_nuscenes_infos(
         )
     train_nusc_infos, val_nusc_infos = _fill_trainval_infos(
         nusc, train_scenes, val_scenes, test, max_sweeps=max_sweeps, prune_cfg=prune_cfg)
-    if reduce_ratio < 1.0:
-        train_nusc_infos, val_nusc_infos = _fill_trainval_infos_reduce(
-            nusc, train_scenes, val_scenes, test, max_sweeps=max_sweeps, reduce_ratio=reduce_ratio)
-    elif reduce_ratio == 1.0:
-        train_nusc_infos, val_nusc_infos = _fill_trainval_infos(
-            nusc, train_scenes, val_scenes, test, max_sweeps=max_sweeps)
-    else:
-        raise NotImplementedError("reduce_ratio should be no more than 1.0")
 
     metadata = dict(version=version)
     if test:
@@ -125,10 +99,12 @@ def create_nuscenes_infos(
             )
         )
         data = dict(infos=train_nusc_infos, metadata=metadata)
-        info_path = osp.join(root_path, "{}_infos_train.pkl".format(info_prefix))
+        info_path = osp.join(root_path,
+                             '{}_infos_train.pkl'.format(info_prefix))
         mmcv.dump(data, info_path)
-        data["infos"] = val_nusc_infos
-        info_val_path = osp.join(root_path, "{}_infos_val.pkl".format(info_prefix))
+        data['infos'] = val_nusc_infos
+        info_val_path = osp.join(root_path,
+                                 '{}_infos_val.pkl'.format(info_prefix))
         mmcv.dump(data, info_val_path)
 
 
@@ -172,140 +148,7 @@ def get_available_scenes(nusc):
     print("exist scene num: {}".format(len(available_scenes)))
     return available_scenes
 
-
-def _fill_trainval_infos(nusc, train_scenes, val_scenes, test=False, max_sweeps=10):
-    """Generate the train/val infos from the raw data.
-
-    Args:
-        nusc (:obj:`NuScenes`): Dataset class in the nuScenes dataset.
-        train_scenes (list[str]): Basic information of training scenes.
-        val_scenes (list[str]): Basic information of validation scenes.
-        test (bool): Whether use the test mode. In the test mode, no
-            annotations can be accessed. Default: False.
-        max_sweeps (int): Max number of sweeps. Default: 10.
-
-    Returns:
-        tuple[list[dict]]: Information of training set and validation set
-            that will be saved to the info file.
-    """
-    train_nusc_infos = []
-    val_nusc_infos = []
-
-    for sample in mmcv.track_iter_progress(nusc.sample):
-        lidar_token = sample["data"]["LIDAR_TOP"]
-        sd_rec = nusc.get("sample_data", sample["data"]["LIDAR_TOP"])
-        cs_record = nusc.get("calibrated_sensor", sd_rec["calibrated_sensor_token"])
-        pose_record = nusc.get("ego_pose", sd_rec["ego_pose_token"])
-        location = nusc.get(
-            "log", nusc.get("scene", sample["scene_token"])["log_token"]
-        )["location"]
-        lidar_path, boxes, _ = nusc.get_sample_data(lidar_token)
-
-        mmcv.check_file_exist(lidar_path)
-
-        info = {
-            "lidar_path": lidar_path,
-            "token": sample["token"],
-            "sweeps": [],
-            "cams": dict(),
-            "lidar2ego_translation": cs_record["translation"],
-            "lidar2ego_rotation": cs_record["rotation"],
-            "ego2global_translation": pose_record["translation"],
-            "ego2global_rotation": pose_record["rotation"],
-            "timestamp": sample["timestamp"],
-            "location": location,
-        }
-
-        l2e_r = info["lidar2ego_rotation"]
-        l2e_t = info["lidar2ego_translation"]
-        e2g_r = info["ego2global_rotation"]
-        e2g_t = info["ego2global_translation"]
-        l2e_r_mat = Quaternion(l2e_r).rotation_matrix
-        e2g_r_mat = Quaternion(e2g_r).rotation_matrix
-
-        # obtain 6 image's information per frame
-        camera_types = [
-            "CAM_FRONT",
-            "CAM_FRONT_RIGHT",
-            "CAM_FRONT_LEFT",
-            "CAM_BACK",
-            "CAM_BACK_LEFT",
-            "CAM_BACK_RIGHT",
-        ]
-        for cam in camera_types:
-            cam_token = sample["data"][cam]
-            cam_path, _, camera_intrinsics = nusc.get_sample_data(cam_token)
-            cam_info = obtain_sensor2top(
-                nusc, cam_token, l2e_t, l2e_r_mat, e2g_t, e2g_r_mat, cam
-            )
-            cam_info.update(camera_intrinsics=camera_intrinsics)
-            info["cams"].update({cam: cam_info})
-
-        # obtain sweeps for a single key-frame
-        sd_rec = nusc.get("sample_data", sample["data"]["LIDAR_TOP"])
-        sweeps = []
-        while len(sweeps) < max_sweeps:
-            if not sd_rec["prev"] == "":
-                sweep = obtain_sensor2top(
-                    nusc, sd_rec["prev"], l2e_t, l2e_r_mat, e2g_t, e2g_r_mat, "lidar"
-                )
-                sweeps.append(sweep)
-                sd_rec = nusc.get("sample_data", sd_rec["prev"])
-            else:
-                break
-        info["sweeps"] = sweeps
-        # obtain annotation
-        if not test:
-            annotations = [
-                nusc.get("sample_annotation", token) for token in sample["anns"]
-            ]
-            locs = np.array([b.center for b in boxes]).reshape(-1, 3)
-            dims = np.array([b.wlh for b in boxes]).reshape(-1, 3)
-            rots = np.array([b.orientation.yaw_pitch_roll[0] for b in boxes]).reshape(
-                -1, 1
-            )
-            velocity = np.array(
-                [nusc.box_velocity(token)[:2] for token in sample["anns"]]
-            )
-            valid_flag = np.array(
-                [
-                    (anno["num_lidar_pts"] + anno["num_radar_pts"]) > 0
-                    for anno in annotations
-                ],
-                dtype=bool,
-            ).reshape(-1)
-            # convert velo from global to lidar
-            for i in range(len(boxes)):
-                velo = np.array([*velocity[i], 0.0])
-                velo = velo @ np.linalg.inv(e2g_r_mat).T @ np.linalg.inv(l2e_r_mat).T
-                velocity[i] = velo[:2]
-
-            names = [b.name for b in boxes]
-            for i in range(len(names)):
-                if names[i] in NuScenesDataset.NameMapping:
-                    names[i] = NuScenesDataset.NameMapping[names[i]]
-            names = np.array(names)
-            # we need to convert rot to SECOND format.
-            gt_boxes = np.concatenate([locs, dims, -rots - np.pi / 2], axis=1)
-            assert len(gt_boxes) == len(
-                annotations
-            ), f"{len(gt_boxes)}, {len(annotations)}"
-            info["gt_boxes"] = gt_boxes
-            info["gt_names"] = names
-            info["gt_velocity"] = velocity.reshape(-1, 2)
-            info["num_lidar_pts"] = np.array([a["num_lidar_pts"] for a in annotations])
-            info["num_radar_pts"] = np.array([a["num_radar_pts"] for a in annotations])
-            info["valid_flag"] = valid_flag
-
-        if sample["scene_token"] in train_scenes:
-            train_nusc_infos.append(info)
-        else:
-            val_nusc_infos.append(info)
-
-    return train_nusc_infos, val_nusc_infos
-
-
-def _fill_trainval_infos_reduce(nusc,
+def _fill_trainval_infos(nusc,
                          train_scenes,
                          val_scenes,
                          test=False,
@@ -393,8 +236,8 @@ def _fill_trainval_infos_reduce(nusc,
             "ego2global_translation": pose_record["translation"],
             "ego2global_rotation": pose_record["rotation"],
             "timestamp": sample["timestamp"],
-            "prev_token": sample["prev"],
-            "location": location,
+            "prev_token" : sample["prev"],
+            "location" : location
         }
 
         l2e_r = info["lidar2ego_rotation"]
@@ -471,41 +314,40 @@ def _fill_trainval_infos_reduce(nusc,
             assert len(gt_boxes) == len(
                 annotations
             ), f"{len(gt_boxes)}, {len(annotations)}"
-            info["gt_boxes"] = gt_boxes
-            info["gt_names"] = names
-            info["gt_velocity"] = velocity.reshape(-1, 2)
-            info["num_lidar_pts"] = np.array([a["num_lidar_pts"] for a in annotations])
-            # info["num_radar_pts"] = np.array([a["num_radar_pts"] for a in annotations])
-            info["valid_flag"] = valid_flag
+            info['gt_boxes'] = gt_boxes
+            info['gt_names'] = names
+            info['gt_velocity'] = velocity.reshape(-1, 2)
+            info['num_lidar_pts'] = np.array([a['num_lidar_pts'] for a in annotations])
+            info['valid_flag'] = valid_flag
 
-        if info["prev_token"] != "" :
-            info["prev_token"] = prev_token_
-        if sample["scene_token"] in train_scenes:
+        if info['prev_token'] != '' :
+            info['prev_token'] = prev_token_
+        if sample['scene_token'] in train_scenes:
             train_nusc_infos.append(info)
-            token2idx[info["token"]] = ("train", len(train_nusc_infos) - 1)
+            token2idx[info['token']] = ('train', len(train_nusc_infos) - 1)
         else:
             val_nusc_infos.append(info)
-            token2idx[info["token"]] = ("val", len(val_nusc_infos) - 1)
-        prev_token_ = info["token"]
+            token2idx[info['token']] = ('val', len(val_nusc_infos) - 1)
+        prev_token_ = info['token']
 
 
     for info in train_nusc_infos:
-        prev_token = info["prev_token"]
-        if prev_token == "":
-            info["prev"] = -1
+        prev_token = info['prev_token']
+        if prev_token == '':
+            info['prev'] = -1
         else:
             prev_set, prev_idx = token2idx[prev_token]
-            assert prev_set == "train"
-            info["prev"] = prev_idx
+            assert prev_set == 'train'
+            info['prev'] = prev_idx
 
     for info in val_nusc_infos:
-        prev_token = info["prev_token"]
-        if prev_token == "":
-            info["prev"] = -1
+        prev_token = info['prev_token']
+        if prev_token == '':
+            info['prev'] = -1
         else:
             prev_set, prev_idx = token2idx[prev_token]
-            assert prev_set == "val"
-            info["prev"] = prev_idx
+            assert prev_set == 'val'
+            info['prev'] = prev_idx
 
     return train_nusc_infos, val_nusc_infos
 
@@ -838,7 +680,6 @@ def generate_record(
         "instance_token",
         "next",
         "num_lidar_pts",
-        # "num_radar_pts",
         "prev",
         "sample_annotation_token",
         "sample_data_token",

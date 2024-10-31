@@ -16,12 +16,6 @@ from ga.utils import (configs, deep_update, get_map, load_checkpoint, logger,
 
 random.seed(64)
 
-import debugpy
-debugpy.listen(8807)
-print("Wait for debugger...")
-debugpy.wait_for_client()
-print("Debugger attached")
-
 class GA:
     def __init__(self):
         creator.create("Fitness", base.Fitness, weights=(-1.0, 1.0))
