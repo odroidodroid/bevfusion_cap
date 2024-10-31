@@ -2,6 +2,7 @@ import argparse
 import copy
 import os
 import warnings
+import json
 
 import mmcv
 import torch
@@ -17,13 +18,21 @@ from mmdet3d.models import build_model
 from mmdet.apis import multi_gpu_test, set_random_seed
 from mmdet.datasets import replace_ImageToTensor
 from mmdet3d.utils import recursive_eval
-from prune_dataset import single_gpu_prune_dataset, multi_gpu_prune_dataset
+from prune_dataset_loss import single_gpu_prune_dataset, multi_gpu_prune_dataset
+
+import debugpy
+debugpy.listen(8807)
+print("Wait for debugger...")
+debugpy.wait_for_client()
+print("Debugger attached")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="MMDet test (and eval) a model")
     parser.add_argument("config", help="test config file path")
     parser.add_argument("checkpoint", help="checkpoint file")
     parser.add_argument("--prune-dataset", type=bool, default=True)
+    parser.add_argument("--loss-dir", type=str, default='./loss/')
     parser.add_argument("--ascending", type=bool, default=True)
     parser.add_argument("--prune-ratio", type=float, default=0.5)
     parser.add_argument("--out-dir", help="output result in json format")
@@ -40,13 +49,6 @@ def parse_args():
         help="Format the output results without perform evaluation. It is"
         "useful when you want to format the result to a specific format and "
         "submit it to the test server",
-    )
-    parser.add_argument(
-        "--eval",
-        type=str,
-        nargs="+",
-        help='evaluation metrics, which depends on the dataset, e.g., "bbox",'
-        ' "segm", "proposal" for COCO, and "mAP", "recall" for PASCAL VOC',
     )
     parser.add_argument("--show", action="store_true", help="show results")
     parser.add_argument("--show-dir", help="directory where results will be saved")
@@ -121,18 +123,6 @@ def main():
     torch.backends.cudnn.benchmark = True
     torch.cuda.set_device(dist.local_rank())
 
-    assert args.out or args.eval or args.format_only or args.show or args.show_dir, (
-        "Please specify at least one operation (save/eval/format/show the "
-        'results / save the results) with the argument "--out", "--eval"'
-        ', "--format-only", "--show" or "--show-dir"'
-    )
-
-    if args.eval and args.format_only:
-        raise ValueError("--eval and --format_only cannot be both specified")
-
-    if args.out is not None and not args.out.endswith((".pkl", ".pickle")):
-        raise ValueError("The output file must be a pkl file.")
-
     configs.load(args.config, recursive=True)
     configs.update(opts)
     cfg = Config(recursive_eval(configs), filename=args.config)
@@ -164,7 +154,7 @@ def main():
                 ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
 
     # init distributed env first, since logger depends on the dist info.
-    distributed = True
+    distributed = False
 
     # set random seeds
     if args.seed is not None:
@@ -196,16 +186,18 @@ def main():
     else:
         model.CLASSES = dataset.CLASSES
 
-    if not distributed:
-        model = MMDataParallel(model, device_ids=[0])
-        outputs = single_gpu_prune_dataset(model, data_loader, args.ascending)
-    else:
-        model = MMDistributedDataParallel(
-            model.cuda(),
-            device_ids=[torch.cuda.current_device()],
-            broadcast_buffers=False,
-        )
-        outputs = multi_gpu_prune_dataset(model, data_loader, args.tmpdir, args.gpu_collect)
+    model = MMDataParallel(model, device_ids=[0])
+    outputs = single_gpu_prune_dataset(model, data_loader, args.ascending, args.prune_ratio)
+
+    # save losses
+    if not os.path.exists(args.loss_dir) :
+        os.makedirs(args.loss_dir)
+    loss_file_path = f"{args.loss_dir}/pruned_{args.prune_ratio}.json"
+    with open(loss_file_path, 'w') as f:
+        json.dump(outputs, f)
+    
+    # build ann_file for train dataset
+    
 
 if __name__ == "__main__":
     main()

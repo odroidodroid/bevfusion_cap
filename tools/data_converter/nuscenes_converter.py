@@ -1,18 +1,19 @@
+import json
+import math
 import os
 from collections import OrderedDict
 from os import path as osp
 from typing import List, Tuple, Union
 
-import mmcv
 import numpy as np
 from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.geometry_utils import view_points
 from pyquaternion import Quaternion
 from shapely.geometry import MultiPoint, box
 
+import mmcv
 from mmdet3d.core.bbox.box_np_ops import points_cam2img
 from mmdet3d.datasets import NuScenesDataset
-import math
 
 nus_categories = ('car', 'truck', 'trailer', 'bus', 'construction_vehicle',
                   'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone',
@@ -28,7 +29,7 @@ def create_nuscenes_infos(root_path,
                           info_prefix,
                           version='v1.0-trainval',
                           max_sweeps=10, 
-                          reduce_ratio=0.3):
+                          prune_cfg=None):
     """Create info file of nuscene dataset.
 
     Given the raw data, generate its related info file in pkl format.
@@ -83,7 +84,7 @@ def create_nuscenes_infos(root_path,
             "train scene: {}, val scene: {}".format(len(train_scenes), len(val_scenes))
         )
     train_nusc_infos, val_nusc_infos = _fill_trainval_infos(
-        nusc, train_scenes, val_scenes, test, max_sweeps=max_sweeps, reduce_ratio=reduce_ratio)
+        nusc, train_scenes, val_scenes, test, max_sweeps=max_sweeps, prune_cfg=prune_cfg)
 
     metadata = dict(version=version)
     if test:
@@ -152,7 +153,7 @@ def _fill_trainval_infos(nusc,
                          val_scenes,
                          test=False,
                          max_sweeps=10, 
-                         reduce_ratio=0.3):
+                         prune_cfg=None):
     """Generate the train/val infos from the raw data.
 
     Args:
@@ -174,35 +175,45 @@ def _fill_trainval_infos(nusc,
     cnt = 1
     prev_scene_token = ''
 
-    for sample in mmcv.track_iter_progress(nusc.sample) :
-        if prev_scene_token == '' :
-            prev_scene_token = sample['scene_token']
-        else :
-            if prev_scene_token == sample['scene_token'] :
-                cnt += 1
+    if prune_cfg is not None :    
+        for sample in mmcv.track_iter_progress(nusc.sample) :
+            if prev_scene_token == '' :
+                prev_scene_token = sample['scene_token']
             else :
-                scene_frame_num.append(cnt)
-                cnt = 1
-        prev_scene_token = sample['scene_token']
-    scene_frame_num.append(cnt)
+                if prev_scene_token == sample['scene_token'] :
+                    cnt += 1
+                else :
+                    scene_frame_num.append(cnt)
+                    cnt = 1
+            prev_scene_token = sample['scene_token']
+        scene_frame_num.append(cnt)
 
-    reduced_frame_num = [math.ceil(reduce_ratio * num_i) for num_i in scene_frame_num]
-    selected_frame_range = [np.linspace(0, scene_frame_num[i]-1, reduced_frame_num[i], dtype=int).tolist() for i in range(len(scene_frame_num))]
+        if prune_cfg['method'] == 'ratio' :
+            reduced_frame_num = [math.ceil(prune_cfg['reduce_ratio'] * num_i) for num_i in scene_frame_num]
+            selected_frame_range = [np.linspace(0, scene_frame_num[i]-1, reduced_frame_num[i], dtype=int).tolist() for i in range(len(scene_frame_num))]
+        elif prune_cfg['method'] == 'loss' :
+            with open(prune_cfg['token_list'], 'r') as f :
+                token_list = json.load(f)
     
-    prev_scene_token = ''
-    prev_token_ = ''
+        prev_scene_token = ''
+        prev_token_ = ''
     for sample in mmcv.track_iter_progress(nusc.sample):
-        if prev_scene_token == '' :
-            scene = 0
-            cnt = -1
-        else :
-            if prev_scene_token != sample['scene_token'] :
-                scene += 1
-                cnt = -1
-        cnt += 1
-        if cnt not in selected_frame_range[scene] :
-            continue
-
+        if prune_cfg is not None :    
+            if prune_cfg['method'] == 'ratio' :
+                if prev_scene_token == '' :
+                    scene = 0
+                    cnt = -1
+                else :
+                    if prev_scene_token != sample['scene_token'] :
+                        scene += 1
+                        cnt = -1
+                cnt += 1
+                if cnt not in selected_frame_range[scene] :
+                    continue
+            elif prune_cfg['method'] == 'loss' :
+                for token in token_list :
+                    if token != sample["token"] :
+                        continue
         prev_scene_token = sample['scene_token']
         lidar_token = sample['data']['LIDAR_TOP']
         sd_rec = nusc.get('sample_data', sample['data']['LIDAR_TOP'])
