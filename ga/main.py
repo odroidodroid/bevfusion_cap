@@ -8,7 +8,7 @@ import yaml
 from deap import algorithms, base, creator, tools
 
 from ga.genes import (chromosome_default_resnet, chromosome_minidataset,
-                      chromosome_to_config_dict, generate_chromosome)
+                      chromosome_to_config_dict, generate_chromosome, cross_over, mutation)
 from ga.utils import (configs, deep_update, get_map, load_checkpoint, logger,
                       save_checkpoint, write_stds)
 
@@ -27,8 +27,8 @@ class GA:
         toolbox.register("population", tools.initRepeat,
                          list, toolbox.individual)
         toolbox.register("evaluate", self.evalKnapsack)
-        toolbox.register("mate", self.cxSet)
-        toolbox.register("mutate", self.mutSet)
+        toolbox.register("mate", cross_over)
+        toolbox.register("mutate", mutation)
         toolbox.register("select", tools.selNSGA2)
 
         self.toolbox = toolbox
@@ -49,8 +49,8 @@ class GA:
         with open(config_path, 'w') as f:
             yaml.dump(config_dict, f)
 
-        conda_env = "bevfusion"
-        conda_activate = f"conda activate {conda_env}"
+        #conda_env = "bevfusion"
+        #conda_activate = f"conda activate {conda_env}"
         run = [
             "torchpack",
             "dist-run",
@@ -61,7 +61,8 @@ class GA:
             "--load_from=pretrained/lidar-only-det.pth",
             f"--run-dir={run_dir}",
         ]
-        cmd = f"{conda_activate}; {' '.join(run)}"
+        #cmd = f"{conda_activate}; {' '.join(run)}"
+        cmd = f"{' '.join(run)}"
         logger.info(f"{cmd=}")
 
         process = subprocess.Popen(
@@ -88,20 +89,12 @@ class GA:
         logger.info(f"======================================================")
         return latency, mAP
 
-    def cxSet(self, ind1, ind2):
-        """Apply a crossover operation on input sets. The first child is the
-        intersection of the two sets, the second child is the difference of the
-        two sets.
-        """
-        temp = set(ind1)                # Used in order to keep type
-        ind1 &= ind2                    # Intersection (inplace)
-        ind2 ^= temp                    # Symmetric Difference (inplace)
-        return ind1, ind2
+    #def cxSet(self, ind1, ind2):
 
-    def mutSet(self, individual):
-        """Mutation that change one gene in the set."""
+    #def mutSet(self, individual):
+    #    """Mutation that change one gene in the set."""
 
-        return individual,
+    #    return individual,
 
     def search(self):
         # generate initial population
