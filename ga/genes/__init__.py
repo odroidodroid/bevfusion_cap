@@ -10,5 +10,7 @@ from .lidar import (encoder_lidar_backbone_encoder_channels,
                     encoder_lidar_backbone_encoder_paddings,
                     encoder_lidar_backbone_output_channels)
 from .chromosome import (chromosome_default_resnet, chromosome_minidataset,
-                         chromosome_to_config_dict, generate_chromosome)
+                         chromosome_to_config_dict, crossover_onepoint,
+                         crossover_twopoint, crossover_uniform,
+                         generate_chromosome, mutate_onepoint, mutate_uniform)
 from .default import image_size

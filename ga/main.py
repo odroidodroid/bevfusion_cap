@@ -8,7 +8,8 @@ import yaml
 from deap import algorithms, base, creator, tools
 
 from ga.genes import (chromosome_default_resnet, chromosome_minidataset,
-                      chromosome_to_config_dict, generate_chromosome)
+                      chromosome_to_config_dict, crossover_twopoint,
+                      generate_chromosome, mutate_onepoint)
 from ga.utils import (configs, deep_update, get_map, load_checkpoint, logger,
                       save_checkpoint, write_stds)
 
@@ -22,13 +23,11 @@ class GA:
 
         toolbox = base.Toolbox()
         # toolbox.register("attr_item", generate_chromosome)
-        toolbox.register("individual", tools.initIterate,
-                         creator.Individual, generate_chromosome)
-        toolbox.register("population", tools.initRepeat,
-                         list, toolbox.individual)
+        toolbox.register("individual", tools.initIterate, creator.Individual, generate_chromosome)
+        toolbox.register("population", tools.initRepeat, list, toolbox.individual)
         toolbox.register("evaluate", self.evalKnapsack)
-        toolbox.register("mate", self.cxSet)
-        toolbox.register("mutate", self.mutSet)
+        toolbox.register("mate", crossover_twopoint)
+        toolbox.register("mutate", mutate_onepoint)
         toolbox.register("select", tools.selNSGA2)
 
         self.toolbox = toolbox
@@ -71,7 +70,6 @@ class GA:
         # TODO: check loss and early stop
         # os.kill(process.pid, signal.SIGTERM); import signal
         exitcode = process.wait()
-        # os.remove(config_path)
 
         self.current_ind += 1
         if exitcode != 0:
@@ -87,21 +85,6 @@ class GA:
         logger.info(f"gen_{self.current_gen}_ind_{self.current_ind} mAP: {mAP} latency: {latency}")
         logger.info(f"===================================================")
         return latency, mAP
-
-    def cxSet(self, ind1, ind2):
-        """Apply a crossover operation on input sets. The first child is the
-        intersection of the two sets, the second child is the difference of the
-        two sets.
-        """
-        temp = set(ind1)                # Used in order to keep type
-        ind1 &= ind2                    # Intersection (inplace)
-        ind2 ^= temp                    # Symmetric Difference (inplace)
-        return ind1, ind2
-
-    def mutSet(self, individual):
-        """Mutation that change one gene in the set."""
-
-        return individual,
 
     def search(self):
         # generate initial population
