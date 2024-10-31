@@ -18,20 +18,23 @@ from mmdet3d.utils import get_root_logger, convert_sync_batchnorm, recursive_eva
 
 
 def main():
-    dist.init()
 
     parser = argparse.ArgumentParser()
     parser.add_argument("config", metavar="FILE", help="config file")
     parser.add_argument("--run-dir", metavar="DIR", help="run directory")
+    parser.add_argument("--disable_dist", action="store_true",
+        help="whether to set disable distributed",)
     args, opts = parser.parse_known_args()
 
     configs.load(args.config, recursive=True)
-    configs.update(opts)
+    configs.update(opts)  # FIXME disable_dist generate opts, but it does not related with configs
 
     cfg = Config(recursive_eval(configs), filename=args.config)
 
-    torch.backends.cudnn.benchmark = cfg.cudnn_benchmark
-    torch.cuda.set_device(dist.local_rank())
+    if not args.disable_dist:
+        dist.init()  
+        torch.backends.cudnn.benchmark = cfg.cudnn_benchmark
+        torch.cuda.set_device(dist.local_rank())
 
     if args.run_dir is None:
         args.run_dir = auto_set_run_dir()
@@ -77,7 +80,7 @@ def main():
         model,
         datasets,
         cfg,
-        distributed=True,
+        distributed=not args.disable_dist,
         validate=True,
         timestamp=timestamp,
     )

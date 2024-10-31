@@ -1,5 +1,6 @@
 from typing import Any, Dict
 
+import nvtx
 import torch
 from mmcv.runner import auto_fp16, force_fp32
 from torch import nn
@@ -227,6 +228,7 @@ class BEVFusion(Base3DFusionModel):
             self.encoders if self.training else list(self.encoders.keys())[::-1]
         ):
             if sensor == "camera":
+                nvtx.push_range("camera")
                 feature = self.extract_camera_features(
                     img,
                     points,
@@ -240,8 +242,11 @@ class BEVFusion(Base3DFusionModel):
                     lidar_aug_matrix,
                     metas,
                 )
+                nvtx.pop_range()
             elif sensor == "lidar":
+                nvtx.push_range("lidar")
                 feature = self.extract_lidar_features(points)
+                nvtx.pop_range()
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
             features.append(feature)
@@ -251,15 +256,21 @@ class BEVFusion(Base3DFusionModel):
             features = features[::-1]
 
         if self.fuser is not None:
+            nvtx.push_range("fuser")
             x = self.fuser(features)
+            nvtx.pop_range()
         else:
             assert len(features) == 1, features
             x = features[0]
 
         batch_size = x.shape[0]
 
+        nvtx.push_range("backbone")
         x = self.decoder["backbone"](x)
+        nvtx.pop_range()
+        nvtx.push_range("neck")
         x = self.decoder["neck"](x)
+        nvtx.pop_range()
 
         if self.training:
             outputs = {}
@@ -281,7 +292,10 @@ class BEVFusion(Base3DFusionModel):
             outputs = [{} for _ in range(batch_size)]
             for type, head in self.heads.items():
                 if type == "object":
+                    nvtx.push_range("head")
                     pred_dict = head(x, metas)
+                    nvtx.pop_range()
+                    nvtx.push_range("postprocess")
                     bboxes = head.get_bboxes(pred_dict, metas)
                     for k, (boxes, scores, labels) in enumerate(bboxes):
                         outputs[k].update(
@@ -291,6 +305,7 @@ class BEVFusion(Base3DFusionModel):
                                 "labels_3d": labels.cpu(),
                             }
                         )
+                    nvtx.pop_range()
                 elif type == "map":
                     logits = head(x)
                     for k in range(batch_size):

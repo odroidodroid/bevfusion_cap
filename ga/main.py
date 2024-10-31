@@ -10,8 +10,8 @@ from deap import algorithms, base, creator, tools
 from ga.genes import (chromosome_default_resnet, chromosome_minidataset,
                       chromosome_to_config_dict, crossover_twopoint,
                       generate_chromosome, mutate_onepoint)
-from ga.utils import (configs, deep_update, get_map, load_checkpoint, logger,
-                      save_checkpoint, write_stds)
+from ga.utils import (configs, deep_update, get_latency, get_map,
+                      load_checkpoint, logger, save_checkpoint, write_stds)
 
 random.seed(64)
 
@@ -66,7 +66,7 @@ class GA:
         process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         logger.info(f"Started process {process.pid}")
-        write_stds(process, enableStdout=True)
+        write_stds(process, enableStderr=True)
         # TODO: check loss and early stop
         # os.kill(process.pid, signal.SIGTERM); import signal
         exitcode = process.wait()
@@ -74,15 +74,24 @@ class GA:
         self.current_ind += 1
         if exitcode != 0:
             logger.error(f"Process {process.pid} failed with exit code {exitcode}")
-            latency, mAP = 10000, 0
+            latency, mAP = 10000, 0.0
         else:
             # evaluate latency
-            latency = 1000  # TODO: nvtx to get latency
+            batch_size = 1
+            exitcode = subprocess.run(
+                f"nsys profile -y 6 -t cuda,nvtx -o {run_dir}/report1 --stats=true \
+                python tools/test.py {config_path} --data.samples_per_gpu={batch_size} --data.workers_per_gpu={batch_size} \
+                {run_dir}/latest.pth --eval bbox --disable_dist",
+                shell=True
+            ).returncode
+
+            # get latency
+            latency = get_latency(run_dir)
 
             # get mAP
             mAP = get_map(run_dir)
 
-        logger.info(f"gen_{self.current_gen}_ind_{self.current_ind} mAP: {mAP} latency: {latency}")
+        logger.info(f"gen_{self.current_gen}_ind_{self.current_ind} mAP: {mAP:.2f} latency: {latency:.2f}")
         logger.info(f"===================================================")
         return latency, mAP
 

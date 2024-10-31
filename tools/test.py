@@ -63,6 +63,11 @@ def parse_args():
         help="whether to set deterministic options for CUDNN backend.",
     )
     parser.add_argument(
+        "--disable_dist",
+        action="store_true",
+        help="whether to set disable distributed",
+    )
+    parser.add_argument(
         "--cfg-options",
         nargs="+",
         action=DictAction,
@@ -95,7 +100,7 @@ def parse_args():
         help="job launcher",
     )
     parser.add_argument("--local_rank", type=int, default=0)
-    args = parser.parse_args()
+    args, opts = parser.parse_known_args()
     if "LOCAL_RANK" not in os.environ:
         os.environ["LOCAL_RANK"] = str(args.local_rank)
 
@@ -107,15 +112,16 @@ def parse_args():
     if args.options:
         warnings.warn("--options is deprecated in favor of --eval-options")
         args.eval_options = args.options
-    return args
+    return args, opts
 
 
 def main():
-    args = parse_args()
-    dist.init()
+    args, opts = parse_args()
+    if not args.disable_dist:
+        dist.init()
 
-    torch.backends.cudnn.benchmark = True
-    torch.cuda.set_device(dist.local_rank())
+        torch.backends.cudnn.benchmark = True
+        torch.cuda.set_device(dist.local_rank())
 
     assert args.out or args.eval or args.format_only or args.show or args.show_dir, (
         "Please specify at least one operation (save/eval/format/show the "
@@ -130,6 +136,7 @@ def main():
         raise ValueError("The output file must be a pkl file.")
 
     configs.load(args.config, recursive=True)
+    configs.update(opts)
     cfg = Config(recursive_eval(configs), filename=args.config)
     print(cfg)
 
@@ -159,7 +166,7 @@ def main():
                 ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
 
     # init distributed env first, since logger depends on the dist info.
-    distributed = True
+    distributed = not args.disable_dist
 
     # set random seeds
     if args.seed is not None:
