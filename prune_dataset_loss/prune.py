@@ -18,7 +18,6 @@ def single_gpu_prune_dataset(model, data_loader, ascending, prune_ratio):
     losses = []
     dataset = data_loader.dataset
     prog_bar = mmcv.ProgressBar(len(dataset))
-    cnt = 0
     for data in data_loader:
         with torch.no_grad():
             loss = model(return_loss=True, rescale=True, **data)
@@ -28,9 +27,6 @@ def single_gpu_prune_dataset(model, data_loader, ascending, prune_ratio):
         batch_size = len(losses)
         for _ in range(batch_size):
             prog_bar.update()
-        if cnt == 10 :
-            break
-        cnt += 1
     if ascending :        
         losses = sorted(losses, key=lambda x : x["loss"], reverse=False)
     else :

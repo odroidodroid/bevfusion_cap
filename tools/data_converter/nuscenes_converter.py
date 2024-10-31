@@ -211,9 +211,8 @@ def _fill_trainval_infos(nusc,
                 if cnt not in selected_frame_range[scene] :
                     continue
             elif prune_cfg['method'] == 'loss' :
-                for token in token_list :
-                    if token != sample["token"] :
-                        continue
+                if sample["token"] not in token_list:
+                    continue
         prev_scene_token = sample['scene_token']
         lidar_token = sample['data']['LIDAR_TOP']
         sd_rec = nusc.get('sample_data', sample['data']['LIDAR_TOP'])
