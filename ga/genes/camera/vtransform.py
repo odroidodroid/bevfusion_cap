@@ -15,7 +15,7 @@ def encoder_camera_vtransform_out_channels():
 def encoder_camera_vtransform_xbound():
     variables = [
         {
-            "bound": lambda interval: 180 * interval,
+            "bound": lambda interval: round(180 * interval),
             "interval": [0.2, 0.25, 0.3, 0.35, 0.4]
         }
     ]

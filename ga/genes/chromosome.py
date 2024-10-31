@@ -1,9 +1,12 @@
 import yaml
 
 from .camera import *
-from .lidar import *
 from .default import *
+from .lidar import *
 
+
+CHROMOSOME_DEFAULT_RESNET = None  # Dynamic Loading
+CHROMOSOME_DEFAULT = None
 
 """
 # Define the search space
@@ -52,6 +55,12 @@ def resolve_dependencies(key, chromosome) -> list:
 
 
 def generate_chromosome() -> dict:
+    global CHROMOSOME_DEFAULT
+    # In first generation, add default chromosome
+    if CHROMOSOME_DEFAULT is None:
+        resnet = chromosome_default_resnet()
+        CHROMOSOME_DEFAULT = { key: value for key, value in resnet.items() if key in search_space.keys() }
+        return CHROMOSOME_DEFAULT
     chromosome = {}
     for key, func in search_space.items():
         args = resolve_dependencies(key, chromosome)
@@ -78,9 +87,12 @@ def chromosome_to_config_dict(chromosome: dict) -> dict:
 
 
 def chromosome_default_resnet() -> dict:
-    with open('./ga/results/default.yaml', 'r') as f:
-        default = yaml.safe_load(f)
-    return default
+    global CHROMOSOME_DEFAULT_RESNET
+    if CHROMOSOME_DEFAULT_RESNET is None:
+        with open('./ga/results/default.yaml', 'r') as f:
+            CHROMOSOME_DEFAULT_RESNET = yaml.safe_load(f)
+    return CHROMOSOME_DEFAULT_RESNET
+
 
 def chromosome_minidataset() -> dict:
     train_pkl = 'mini_infos_train.pkl'

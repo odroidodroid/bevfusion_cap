@@ -67,7 +67,7 @@ class GA:
         process = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         logger.info(f"Started process {process.pid}")
-        write_stds(process)
+        write_stds(process, enableStdout=True)
         # TODO: check loss and early stop
         # os.kill(process.pid, signal.SIGTERM); import signal
         exitcode = process.wait()
@@ -85,7 +85,7 @@ class GA:
             mAP = get_map(run_dir)
 
         logger.info(f"gen_{self.current_gen}_ind_{self.current_ind} mAP: {mAP} latency: {latency}")
-        logger.info(f"======================================================")
+        logger.info(f"===================================================")
         return latency, mAP
 
     def cxSet(self, ind1, ind2):
@@ -137,11 +137,10 @@ if __name__ == '__main__':
         best = ga.search()
     except KeyboardInterrupt as e:
         logger.info("============ Search has been terminated by user ============")
-    finally:
-        logger.info("============ Search has been terminated ============")
-        logger.info("============ Best individual is ============")
+    else:
+        logger.info("============ Search has been completed ============")
+        logger.info("============ Best individual ============")
         logger.info(best)
-        logger.info(f"============ with fitness: {best.fitness.values} ============")
-        logger.info("============ Search has been terminated ============")
+    finally:
         logger.info(f"============ Time: {datetime.now()} ============")
     print("done")
