@@ -24,7 +24,7 @@ def single_gpu_prune_dataset(model, data_loader, ascending, prune_ratio):
         losses.append({'loss' : loss['loss'],
                        'token' : data['metas'].data[0][0]['token']})
 
-        batch_size = len(losses)
+        batch_size = len(loss)
         for _ in range(batch_size):
             prog_bar.update()
     if ascending :        
