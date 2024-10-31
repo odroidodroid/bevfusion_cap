@@ -25,9 +25,9 @@ def parse_args():
     parser.add_argument("config", help="test config file path")
     parser.add_argument("checkpoint", help="checkpoint file")
     parser.add_argument("--prune-dataset", type=bool, default=True)
-    parser.add_argument("--loss-dir", type=str, default='./loss/')
-    parser.add_argument("--ascending", type=bool, default=True)
-    parser.add_argument("--prune-ratio", type=float, default=0.5)
+    parser.add_argument("--pruned-token-dir", type=str, default='./pruned_token/')
+    parser.add_argument("--ascending", type=bool, default=False)
+    parser.add_argument("--prune-ratio", default=[0.25, 0.3, 0.5, 0.7])
     parser.add_argument("--out-dir", help="output result in json format")
     parser.add_argument("--out", help="output result file in pickle format")
     parser.add_argument(
@@ -183,11 +183,12 @@ def main():
     outputs = single_gpu_prune_dataset(model, data_loader, args.ascending, args.prune_ratio)
 
     # save losses
-    if not os.path.exists(args.loss_dir) :
-        os.makedirs(args.loss_dir)
-    loss_file_path = f"{args.loss_dir}/pruned_{args.prune_ratio}.json"
-    with open(loss_file_path, 'w') as f:
-        json.dump(outputs, f)
+    for idx, pr in enumerate(args.prune_ratio) :
+        if not os.path.exists(args.pruned_token_dir) :
+            os.makedirs(args.pruned_token_dir)
+        loss_file_path = f"{args.pruned_token_dir}/pruned_{pr}.json"
+        with open(loss_file_path, 'w') as f:
+            json.dump(outputs[idx], f)
     
 if __name__ == "__main__":
     main()
