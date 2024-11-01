@@ -14,16 +14,8 @@ from torchpack.utils.config import configs
 from mmdet3d.datasets import build_dataset
 from mmdet3d.models import build_model
 from mmdet3d.utils import get_root_logger, convert_sync_batchnorm, recursive_eval
-from prune.spartan.sparsifier import SparsifierConfig, Sparsifier
 from prune.prune_model import prune_model
-# import debugpy
-# debugpy.listen(8807)
-# print("Wait for debugger...")
-# debugpy.wait_for_client()
-# print("Debugger attached")
-
-import wandb
-wandb.init(project='bevfusion_cap')
+from prune.pruner import get_pruner
 
 def main():
     dist.init()
@@ -31,7 +23,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("config", metavar="FILE", help="config file")
     parser.add_argument("--run-dir", metavar="DIR", help="run directory")
-    parser.add_argument("--total-iters", type=int, default=123580)
+    parser.add_argument("--prune_config", default="prune/config.yaml")
     
     args, opts = parser.parse_known_args()
 
@@ -39,6 +31,10 @@ def main():
     configs.update(opts)
 
     cfg = Config(recursive_eval(configs), filename=args.config)
+    
+    configs.load(args.prune_config)
+    configs.update(opt if opt.startswith("prune_config") else None for opt in opts)
+    prune_cfg = Config(configs, filename=args.prune_config)
 
     torch.backends.cudnn.benchmark = cfg.cudnn_benchmark
     torch.cuda.set_device(dist.local_rank())
@@ -84,17 +80,16 @@ def main():
 
     logger.info(f"Model:\n{model}")
     
-    pruner_cfg = SparsifierConfig()
-    pruner = Sparsifier(model=model.encoders.camera.backbone,
-                        config=pruner_cfg,
-                        total_iters=args.total_iters,
-                        verbose=True)
+    dummy = torch.randn(1, 6, 3, 256, 704)
+    pruner = get_pruner(model=model.modules.encoders.camera.backbone, dummy=dummy, cfgs=prune_cfg)
     
     prune_model(
         model,
         pruner,
+        dummy,
         datasets,
         cfg,
+        prune_cfg,
         distributed=True,
         validate=True,
         timestamp=timestamp,

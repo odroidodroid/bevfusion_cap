@@ -180,6 +180,7 @@ class BEVFusion(Base3DFusionModel):
         gt_masks_bev=None,
         gt_bboxes_3d=None,
         gt_labels_3d=None,
+        return_loss=False,
         **kwargs,
     ):
         if isinstance(img, list):
@@ -200,6 +201,7 @@ class BEVFusion(Base3DFusionModel):
                 gt_masks_bev,
                 gt_bboxes_3d,
                 gt_labels_3d,
+                return_loss,
                 **kwargs,
             )
             return outputs
@@ -221,6 +223,7 @@ class BEVFusion(Base3DFusionModel):
         gt_masks_bev=None,
         gt_bboxes_3d=None,
         gt_labels_3d=None,
+        return_loss=False,
         **kwargs,
     ):
         features = []
@@ -289,6 +292,21 @@ class BEVFusion(Base3DFusionModel):
                         outputs[f"stats/{type}/{name}"] = val
             return outputs
         else:
+            if return_loss :
+                outputs = {}
+                for type, head in self.heads.items():
+                    if type == "object":
+                        pred_dict = head(x, metas)
+                        losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict)
+                    for name, val in losses.items():
+                        if val.requires_grad:
+                            outputs[f"loss/{type}/{name}"] = val * self.loss_scale[type]
+                        else:
+                            outputs[f"stats/{type}/{name}"] = val
+                loss = sum(_value for _key, _value in outputs.items() if "loss" in _key)
+                outputs['loss'] = loss
+                return outputs
+
             outputs = [{} for _ in range(batch_size)]
             for type, head in self.heads.items():
                 if type == "object":

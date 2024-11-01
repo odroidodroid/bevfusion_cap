@@ -2,7 +2,7 @@ import argparse
 
 from data_converter import nuscenes_converter as nuscenes_converter
 from data_converter.create_gt_database import create_groundtruth_database
-
+from collections import OrderedDict
 
 def nuscenes_data_prep(
     root_path,
@@ -12,7 +12,7 @@ def nuscenes_data_prep(
     out_dir,
     max_sweeps=10,
     load_augmented=None,
-    reduce_ratio=1.0,
+    prune_cfg=None
 ):
     """Prepare data related to nuScenes dataset.
 
@@ -30,7 +30,7 @@ def nuscenes_data_prep(
     if load_augmented is None:
         # otherwise, infos must have been created, we just skip.
         nuscenes_converter.create_nuscenes_infos(
-            root_path, info_prefix, version=version, max_sweeps=max_sweeps, reduce_ratio=reduce_ratio
+            root_path, info_prefix, version=version, max_sweeps=max_sweeps, prune_cfg=prune_cfg
         )
 
         # if version == "v1.0-test":
@@ -82,7 +82,10 @@ parser.add_argument(
     help="name of info pkl",
 )
 parser.add_argument("--extra-tag", type=str, default="kitti")
-parser.add_argument("--reduce-ratio", type=float, default=1.0)
+parser.add_argument("--prune", default=False, action='store_true')
+parser.add_argument("--prune-method", default=None, choices=[None, 'loss', 'ratio'])
+parser.add_argument("--token-list", type=str, default=None)
+parser.add_argument("--reduce-ratio", type=float, default=0.0)
 parser.add_argument("--painted", default=False, action="store_true")
 parser.add_argument("--virtual", default=False, action="store_true")
 parser.add_argument(
@@ -97,8 +100,19 @@ if __name__ == "__main__":
             load_augmented = "mvp"
         else:
             load_augmented = "pointpainting"
-    if args.reduce_ratio < 1.0:
-        args.extra_tag = args.extra_tag + f"_reduced{args.reduce_ratio}"
+    if args.prune :
+        prune_cfg = {
+            'method' : args.prune_method,
+            'reduce_ratio' : args.reduce_ratio,
+            'token_list' : args.token_list
+        }
+        if args.prune_method == 'ratio' :
+            args.extra_tag = args.extra_tag + "_reduced{}".format(args.reduce_ratio)
+        elif args.prune_method == 'loss' :
+            args.extra_tag = args.extra_tag + "_loss{}".format(args.reduce_ratio)
+    else :
+        prune_cfg = None
+            
     if args.dataset == "nuscenes" and args.version != "v1.0-mini":
         train_version = f"{args.version}-trainval"
         nuscenes_data_prep(
@@ -109,7 +123,7 @@ if __name__ == "__main__":
             out_dir=args.out_dir,
             max_sweeps=args.max_sweeps,
             load_augmented=load_augmented,
-            reduce_ratio=args.reduce_ratio
+            prune_cfg=prune_cfg
         )
         test_version = f"{args.version}-test"
         nuscenes_data_prep(
@@ -120,7 +134,7 @@ if __name__ == "__main__":
             out_dir=args.out_dir,
             max_sweeps=args.max_sweeps,
             load_augmented=load_augmented,
-            reduce_ratio=args.reduce_ratio
+            prune_cfg=prune_cfg
         )
     elif args.dataset == "nuscenes" and args.version == "v1.0-mini":
         train_version = f"{args.version}"
@@ -132,5 +146,5 @@ if __name__ == "__main__":
             out_dir=args.out_dir,
             max_sweeps=args.max_sweeps,
             load_augmented=load_augmented,
-            reduce_ratio=args.reduce_ratio
+            prune_cfg=prune_cfg
         )
