@@ -12,13 +12,16 @@ from ga.algo import custom_eaMuPlusLambda, run_model
 from ga.genes import (chromosome_default_resnet, chromosome_minidataset,
                       chromosome_to_config_dict, crossover_twopoint,
                       generate_chromosome, mutate_onepoint)
-from ga.utils import (configs, deep_update, get_latency, get_map,
-                      load_checkpoint, logger, save_checkpoint, write_stds)
+from ga.utils import (configs, deep_update, get_latency, get_map, load_cache,
+                      load_checkpoint, logger, save_cache, save_checkpoint,
+                      write_stds)
 
 random.seed(64)
 
 class GA:
-    def __init__(self):
+    def __init__(self, name: str = "untitled"):
+        self.name = name
+
         creator.create("Fitness", base.Fitness, weights=(-1.0, 1.0))
         creator.create("Individual", dict, fitness=creator.Fitness)
 
@@ -32,26 +35,37 @@ class GA:
         toolbox.register("select", tools.selNSGA2)
 
         self.toolbox = toolbox
+        self.cache_path = os.path.join("./ga/results", f"{name}_cache.json")
+        self.cache = load_cache(self.cache_path)
 
     def evalKnapsack(self, individual, ind_idx, gen_idx):
         logger.info(f"================== Individual {ind_idx} ==================")
         logger.info(f"{individual=}")
 
+        if str(individual) in self.cache:
+            logger.info(f"Individual {ind_idx} already evaluated")
+            latency = self.cache[str(individual)]['latency']
+            mAP = self.cache[str(individual)]['mAP']
+            logger.info(f"gen {gen_idx} ind {ind_idx} mAP: {mAP:.2f} latency: {latency:.2f}")
+            logger.info(f"===================================================")
+            return latency, mAP
+
         # make dir with gen and individual id(idx of population)
-        name = f"gen_{gen_idx}_ind_{ind_idx}"
-        run_dir = os.path.join(configs.PROJECT_DIR, name)
+        run_dir = os.path.join(configs.PROJECT_DIR, f"gen_{gen_idx}", f"ind_{ind_idx}")
         os.makedirs(run_dir, exist_ok=True)
 
         config_dict = chromosome_default_resnet()
         deep_update(config_dict, chromosome_to_config_dict(individual))
         deep_update(config_dict['data'], chromosome_minidataset())
-        config_path = os.path.join(run_dir, f"{name}.yaml")
+        config_path = os.path.join(run_dir, f"{self.name}.yaml")
         with open(config_path, 'w') as f:
             yaml.dump(config_dict, f)
 
         latency, mAP = run_model(config_path, run_dir)
+        self.cache[str(individual)] = {"latency": latency, "mAP": mAP}
+        save_cache(self.cache_path, self.cache)
 
-        logger.info(f"gen_{self.current_gen}_ind_{self.current_ind} mAP: {mAP:.2f} latency: {latency:.2f}")
+        logger.info(f"gen_{gen_idx}_ind_{ind_idx} mAP: {mAP:.2f} latency: {latency:.2f}")
         logger.info(f"===================================================")
         return latency, mAP
 
@@ -80,7 +94,7 @@ class GA:
 
 
 if __name__ == '__main__':
-    ga = GA()
+    ga = GA("bevfusion")
     try:
         best = ga.search()
     except KeyboardInterrupt as e:

@@ -8,7 +8,6 @@ from ga.utils import configs, get_map, get_latency, logger, save_checkpoint, wri
 
 def custom_eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen, stats=None,
                    halloffame=None, verbose=__debug__) :
-    
     logbook = tools.Logbook()
     logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
 
@@ -92,13 +91,14 @@ def run_model(config_path, run_dir) :
 
     if exitcode != 0:
         logger.error(f"Process {process.pid} failed with exit code {exitcode}")
-        return 100000, 0
+        return 100000.0, 0.0
     else:
         # evaluate latency
         batch_size = 1
         exitcode = subprocess.run(
             f"nsys profile -y 6 -t cuda,nvtx -o {run_dir}/report1 --stats=true \
-            python tools/test.py {config_path} --data.samples_per_gpu={batch_size} --data.workers_per_gpu={batch_size} \
+            python tools/test.py {config_path} \
+            --data.samples_per_gpu={batch_size} --data.workers_per_gpu={batch_size} \
             {run_dir}/latest.pth --eval bbox --disable_dist",
             shell=True
         ).returncode
