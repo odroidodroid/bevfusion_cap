@@ -62,11 +62,11 @@ class GA:
             yaml.dump(config_dict, f)
 
         latency, mAP = run_model(config_path, run_dir)
-        self.cache[str(individual)] = {"latency": latency, "mAP": mAP}
-        save_cache(self.cache_path, self.cache)
 
         logger.info(f"gen_{gen_idx}_ind_{ind_idx} mAP: {mAP:.2f} latency: {latency:.2f}")
         logger.info(f"===================================================")
+        self.cache[str(individual)] = {"latency": latency, "mAP": mAP}
+        save_cache(self.cache_path, self.cache)
         return latency, mAP
 
     def search(self):

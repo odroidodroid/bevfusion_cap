@@ -5,24 +5,40 @@ from collections import OrderedDict
 from os import path as osp
 from typing import List, Tuple, Union
 
+import mmcv
 import numpy as np
 from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.geometry_utils import view_points
 from pyquaternion import Quaternion
 from shapely.geometry import MultiPoint, box
 
-import mmcv
 from mmdet3d.core.bbox.box_np_ops import points_cam2img
 from mmdet3d.datasets import NuScenesDataset
 
-nus_categories = ('car', 'truck', 'trailer', 'bus', 'construction_vehicle',
-                  'bicycle', 'motorcycle', 'pedestrian', 'traffic_cone',
-                  'barrier')
+nus_categories = (
+    "car",
+    "truck",
+    "trailer",
+    "bus",
+    "construction_vehicle",
+    "bicycle",
+    "motorcycle",
+    "pedestrian",
+    "traffic_cone",
+    "barrier",
+)
 
-nus_attributes = ('cycle.with_rider', 'cycle.without_rider',
-                  'pedestrian.moving', 'pedestrian.standing',
-                  'pedestrian.sitting_lying_down', 'vehicle.moving',
-                  'vehicle.parked', 'vehicle.stopped', 'None')
+nus_attributes = (
+    "cycle.with_rider",
+    "cycle.without_rider",
+    "pedestrian.moving",
+    "pedestrian.standing",
+    "pedestrian.sitting_lying_down",
+    "vehicle.moving",
+    "vehicle.parked",
+    "vehicle.stopped",
+    "None",
+)
 
 
 def create_nuscenes_infos(root_path,
@@ -99,12 +115,10 @@ def create_nuscenes_infos(root_path,
             )
         )
         data = dict(infos=train_nusc_infos, metadata=metadata)
-        info_path = osp.join(root_path,
-                             '{}_infos_train.pkl'.format(info_prefix))
+        info_path = osp.join(root_path, "{}_infos_train.pkl".format(info_prefix))
         mmcv.dump(data, info_path)
-        data['infos'] = val_nusc_infos
-        info_val_path = osp.join(root_path,
-                                 '{}_infos_val.pkl'.format(info_prefix))
+        data["infos"] = val_nusc_infos
+        info_val_path = osp.join(root_path, "{}_infos_val.pkl".format(info_prefix))
         mmcv.dump(data, info_val_path)
 
 
@@ -236,8 +250,8 @@ def _fill_trainval_infos(nusc,
             "ego2global_translation": pose_record["translation"],
             "ego2global_rotation": pose_record["rotation"],
             "timestamp": sample["timestamp"],
-            "prev_token" : sample["prev"],
-            "location" : location
+            "prev_token": sample["prev"],
+            "location": location,
         }
 
         l2e_r = info["lidar2ego_rotation"]
@@ -314,40 +328,41 @@ def _fill_trainval_infos(nusc,
             assert len(gt_boxes) == len(
                 annotations
             ), f"{len(gt_boxes)}, {len(annotations)}"
-            info['gt_boxes'] = gt_boxes
-            info['gt_names'] = names
-            info['gt_velocity'] = velocity.reshape(-1, 2)
-            info['num_lidar_pts'] = np.array([a['num_lidar_pts'] for a in annotations])
-            info['valid_flag'] = valid_flag
+            info["gt_boxes"] = gt_boxes
+            info["gt_names"] = names
+            info["gt_velocity"] = velocity.reshape(-1, 2)
+            info["num_lidar_pts"] = np.array([a["num_lidar_pts"] for a in annotations])
+            # info["num_radar_pts"] = np.array([a["num_radar_pts"] for a in annotations])
+            info["valid_flag"] = valid_flag
 
-        if info['prev_token'] != '' :
-            info['prev_token'] = prev_token_
-        if sample['scene_token'] in train_scenes:
+        if info["prev_token"] != "" :
+            info["prev_token"] = prev_token_
+        if sample["scene_token"] in train_scenes:
             train_nusc_infos.append(info)
-            token2idx[info['token']] = ('train', len(train_nusc_infos) - 1)
+            token2idx[info["token"]] = ("train", len(train_nusc_infos) - 1)
         else:
             val_nusc_infos.append(info)
-            token2idx[info['token']] = ('val', len(val_nusc_infos) - 1)
-        prev_token_ = info['token']
+            token2idx[info["token"]] = ("val", len(val_nusc_infos) - 1)
+        prev_token_ = info["token"]
 
 
     for info in train_nusc_infos:
-        prev_token = info['prev_token']
-        if prev_token == '':
-            info['prev'] = -1
+        prev_token = info["prev_token"]
+        if prev_token == "":
+            info["prev"] = -1
         else:
             prev_set, prev_idx = token2idx[prev_token]
-            assert prev_set == 'train'
-            info['prev'] = prev_idx
+            assert prev_set == "train"
+            info["prev"] = prev_idx
 
     for info in val_nusc_infos:
-        prev_token = info['prev_token']
-        if prev_token == '':
-            info['prev'] = -1
+        prev_token = info["prev_token"]
+        if prev_token == "":
+            info["prev"] = -1
         else:
             prev_set, prev_idx = token2idx[prev_token]
-            assert prev_set == 'val'
-            info['prev'] = prev_idx
+            assert prev_set == "val"
+            info["prev"] = prev_idx
 
     return train_nusc_infos, val_nusc_infos
 
