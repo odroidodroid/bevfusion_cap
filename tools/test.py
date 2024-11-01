@@ -63,6 +63,11 @@ def parse_args():
         help="whether to set deterministic options for CUDNN backend.",
     )
     parser.add_argument(
+        "--disable_dist",
+        action="store_true",
+        help="whether to set disable distributed",
+    )
+    parser.add_argument(
         "--cfg-options",
         nargs="+",
         action=DictAction,
@@ -112,10 +117,11 @@ def parse_args():
 
 def main():
     args, opts = parse_args()
-    dist.init()
+    if not args.disable_dist:
+        dist.init()
 
-    torch.backends.cudnn.benchmark = True
-    torch.cuda.set_device(dist.local_rank())
+        torch.backends.cudnn.benchmark = True
+        torch.cuda.set_device(dist.local_rank())
 
     assert args.out or args.eval or args.format_only or args.show or args.show_dir, (
         "Please specify at least one operation (save/eval/format/show the "
@@ -160,7 +166,7 @@ def main():
                 ds_cfg.pipeline = replace_ImageToTensor(ds_cfg.pipeline)
 
     # init distributed env first, since logger depends on the dist info.
-    distributed = True
+    distributed = not args.disable_dist
 
     # set random seeds
     if args.seed is not None:

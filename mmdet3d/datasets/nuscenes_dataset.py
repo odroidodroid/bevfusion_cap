@@ -137,7 +137,7 @@ class NuScenesDataset(Custom3DDataset):
         test_mode=False,
         eval_version="detection_cvpr_2019",
         use_valid_flag=False,
-        reduce_ratio=0
+        reduce_ratio=0.0
     ) -> None:
         self.load_interval = load_interval
         self.use_valid_flag = use_valid_flag
@@ -432,7 +432,7 @@ class NuScenesDataset(Custom3DDataset):
             "v1.0-mini": "mini_val",
             "v1.0-trainval": "val",
         }
-        if self.reduce_ratio != 0 or self.reduce_ratio != 1:
+        if self.reduce_ratio != 0.0 or self.reduce_ratio != 1.0:
              nusc_eval = DetectionEvalforReducedData(
                 nusc,
                 info_path=self.ann_file,
