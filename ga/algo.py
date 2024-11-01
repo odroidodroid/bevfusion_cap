@@ -3,7 +3,7 @@ import subprocess
 from deap import tools
 from deap.algorithms import varAnd, varOr
 
-from ga.utils import configs, get_map, logger, save_checkpoint, write_stds
+from ga.utils import configs, get_map, get_latency, logger, save_checkpoint, write_stds
 
 
 def custom_eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen, stats=None,
@@ -66,14 +66,14 @@ def run_model(config_path, run_dir) :
     run = [
         "torchpack",
         "dist-run",
-        "-np=2",
+        f"-np={configs.NUM_GPUS}",
         "python",
         "tools/train.py",
         config_path,
         "--load_from=pretrained/lidar-only-det.pth",
         f"--run-dir={run_dir}",
     ]
-    conda_env = configs.CUDA_ENV
+    conda_env = configs.CONDA_ENV
     if conda_env is not None :
         conda_activate = f"conda activate {conda_env}"
         cmd = f"{conda_activate}; {' '.join(run)}"
@@ -94,8 +94,18 @@ def run_model(config_path, run_dir) :
         logger.error(f"Process {process.pid} failed with exit code {exitcode}")
         return 100000, 0
     else:
-            # evaluate latency
-            latency = 1000  # TODO: nvtx to get latency
+        # evaluate latency
+        batch_size = 1
+        exitcode = subprocess.run(
+            f"nsys profile -y 6 -t cuda,nvtx -o {run_dir}/report1 --stats=true \
+            python tools/test.py {config_path} --data.samples_per_gpu={batch_size} --data.workers_per_gpu={batch_size} \
+            {run_dir}/latest.pth --eval bbox --disable_dist",
+            shell=True
+        ).returncode
 
-    mAP = get_map(run_dir)
+        # get latency
+        latency = get_latency(run_dir)
+        #get mAP
+        mAP = get_map(run_dir)
+        
     return latency, mAP
