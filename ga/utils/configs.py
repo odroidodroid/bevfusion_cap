@@ -10,4 +10,4 @@ LAMBDA = 100
 CXPB = 0.7  # crossover probability
 MUTPB = 0.2 # mutation probability
 RESULT_FILE_PATH = f"{PROJECT_DIR}/ga_results.json"
-
+CUDA_ENV = 'bevfusion'
