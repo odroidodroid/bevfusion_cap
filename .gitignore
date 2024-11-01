@@ -139,3 +139,7 @@ runs/
 wandb/
 *.sh
 prune/
+tools/train_wandb.py
+ga/results/
+pruned_token/
+bo/

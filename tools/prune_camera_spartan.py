@@ -16,14 +16,6 @@ from mmdet3d.models import build_model
 from mmdet3d.utils import get_root_logger, convert_sync_batchnorm, recursive_eval
 from prune.spartan.sparsifier import SparsifierConfig, Sparsifier
 from prune.prune_model import prune_model
-# import debugpy
-# debugpy.listen(8807)
-# print("Wait for debugger...")
-# debugpy.wait_for_client()
-# print("Debugger attached")
-
-import wandb
-wandb.init(project='bevfusion_cap')
 
 def main():
     dist.init()

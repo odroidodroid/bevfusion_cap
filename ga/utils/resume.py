@@ -1,6 +1,6 @@
 import os
 import pickle
-
+import json
 from .configs import PROJECT_DIR
 from .log import logger
 
@@ -25,3 +25,21 @@ def load_checkpoint(run_dir: str, gen: int = None):
     with open(filename, "rb") as f:
         pip, hall, logbook, gen = pickle.load(f)
     return pip, hall, logbook, gen
+
+def save_results(file_path : str, new_result : dict) :
+    try :
+        with open(file_path, 'r') as f :
+            results = json.load(f)
+    except FileNotFoundError :
+        results = []
+    results.append(new_result)
+    
+    with open(file_path,'w') as f :
+        f.write('[')
+        for idx, res in enumerate(results) :
+            json.dump(res, f)
+            if idx != (len(results)-1) :
+                f.write(',\n')
+            else :
+                f.write(']')
+    logger.info(f"evalKnapsck results saved to {file_path}")
