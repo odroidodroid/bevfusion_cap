@@ -64,31 +64,27 @@ class GA:
         latency, mAP = run_model(config_path, run_dir)
 
         logger.info(f"gen_{gen_idx}_ind_{ind_idx} mAP: {mAP:.2f} latency: {latency:.2f}")
-        logger.info(f"===================================================")
         self.cache[str(individual)] = {"latency": latency, "mAP": mAP}
         save_cache(self.cache_path, self.cache)
+        logger.info(f"===================================================")
         return latency, mAP
 
-    def search(self):
+    def search(self, checkpoint=None):
         # generate initial population
-        pop = self.toolbox.population(n=configs.MU)
-        hof = tools.ParetoFront()
-        stats = tools.Statistics(lambda ind: ind.fitness.values)
-        stats.register("avg", numpy.mean, axis=0)
-        stats.register("std", numpy.std, axis=0)
-        stats.register("min", numpy.min, axis=0)
-        stats.register("max", numpy.max, axis=0)
+        if checkpoint:
+            pop, hof, logbook, gen = load_checkpoint(checkpoint)
+        else:
+            pop = self.toolbox.population(n=configs.MU)
+            hof = tools.ParetoFront()
+            stats = tools.Statistics(lambda ind: ind.fitness.values)
+            stats.register("avg", numpy.mean, axis=0)
+            stats.register("std", numpy.std, axis=0)
+            stats.register("min", numpy.min, axis=0)
+            stats.register("max", numpy.max, axis=0)
 
-        pop, logbook = custom_eaMuPlusLambda(pop, 
-                                             self.toolbox, 
-                                             mu=configs.MU,
-                                             lambda_=configs.LAMBDA,
-                                             cxpb=configs.CXPB, 
-                                             mutpb=configs.MUTPB, 
-                                             ngen=configs.NGEN, 
-                                             stats=stats, 
-                                             halloffame=hof, 
-                                             verbose=True)
+        pop, logbook = custom_eaMuPlusLambda(
+            pop, self.toolbox, configs.MU, configs.LAMBDA, configs.CXPB, configs.MUTPB, configs.NGEN,
+            startgen=gen, stats=stats, halloffame=hof, logbook=logbook, verbose=True)
 
         return hof[0]
 
@@ -104,5 +100,5 @@ if __name__ == '__main__':
         logger.info("============ Best individual ============")
         logger.info(best)
     finally:
-        logger.info(f"============ Time: {datetime.now()} ============")
+        logger.info(f"============= Time: {datetime.now()} =============")
     print("done")

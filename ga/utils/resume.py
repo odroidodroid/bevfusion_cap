@@ -23,8 +23,8 @@ def load_checkpoint(run_dir: str, gen: int = None):
         gen = max([int(f.split("_")[-1].split(".")[0]) for f in files])
     filename = os.path.join(run_dir, f"checkpoint_{gen}.pkl")
     with open(filename, "rb") as f:
-        pip, hall, logbook, gen = pickle.load(f)
-    return pip, hall, logbook, gen
+        pop, hall, logbook, gen = pickle.load(f)
+    return pop, hall, logbook, gen
 
 
 def save_results(file_path: str, new_result: dict):
