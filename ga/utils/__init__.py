@@ -5,7 +5,8 @@ import sqlite3
 import pandas as pd
 
 from .log import logger, write_stds
-from .resume import load_checkpoint, save_checkpoint, save_results
+from .resume import (load_cache, load_checkpoint, save_cache, save_checkpoint,
+                     save_results)
 
 
 def get_map(run_dir):
