@@ -128,9 +128,13 @@ class BEVFusion(Base3DFusionModel):
         return x
 
     def extract_lidar_features(self, x) -> torch.Tensor:
+        nvtx.push_range("voxelize")
         feats, coords, sizes = self.voxelize(x)
+        nvtx.pop_range()
         batch_size = coords[-1, 0] + 1
+        nvtx.push_range("lidar_backbone")
         x = self.encoders["lidar"]["backbone"](feats, coords, batch_size, sizes=sizes)
+        nvtx.pop_range()
         return x
 
     @torch.no_grad()
@@ -247,9 +251,9 @@ class BEVFusion(Base3DFusionModel):
                 )
                 nvtx.pop_range()
             elif sensor == "lidar":
-                nvtx.push_range("lidar")
+                # nvtx.push_range("lidar")
                 feature = self.extract_lidar_features(points)
-                nvtx.pop_range()
+                # nvtx.pop_range()
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
             features.append(feature)

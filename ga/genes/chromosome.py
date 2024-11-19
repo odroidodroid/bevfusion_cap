@@ -190,9 +190,9 @@ def crossover_onepoint(chr1: dict, chr2: dict) -> tuple:
     keys = list(search_space.keys())
     # choose crossover point
     point: int = random.choice(range(len(keys)))
-    logger.info(f"========== Crossover one point: {point} ==========")
-    logger.info(f"Before 1: {chr1}")
-    logger.info(f"Before 2: {chr2}")
+    logger.debug(f"========== Crossover one point: {point} ==========")
+    logger.debug(f"Before 1: {chr1}")
+    logger.debug(f"Before 2: {chr2}")
 
     # crossover
     for idx, key in enumerate(keys):
@@ -204,9 +204,9 @@ def crossover_onepoint(chr1: dict, chr2: dict) -> tuple:
     chr1 = generate(chr1)
     chr2 = generate(chr2)
 
-    logger.info(f"After 1: {chr1}")
-    logger.info(f"After 2: {chr2}")
-    logger.info("===================================================")
+    logger.debug(f"After 1: {chr1}")
+    logger.debug(f"After 2: {chr2}")
+    logger.debug("===================================================")
     return creator.Individual(chr1), creator.Individual(chr2)
 
 
@@ -214,9 +214,9 @@ def crossover_twopoint(chr1: dict, chr2: dict) -> tuple:
     keys = list(search_space.keys())
     # choose two crossover points
     point1, point2 = random.sample(range(len(keys)), 2)
-    logger.info(f"============ Crossover two point: {point1}, {point2} ============")
-    logger.info(f"Before 1: {chr1}")
-    logger.info(f"Before 2: {chr2}")
+    logger.debug(f"============ Crossover two point: {point1}, {point2} ============")
+    logger.debug(f"Before 1: {chr1}")
+    logger.debug(f"Before 2: {chr2}")
 
     # crossover
     for idx, key in enumerate(keys):
@@ -228,17 +228,17 @@ def crossover_twopoint(chr1: dict, chr2: dict) -> tuple:
     chr1 = generate(chr1)
     chr2 = generate(chr2)
 
-    logger.info(f"After 1: {chr1}")
-    logger.info(f"After 2: {chr2}")
-    logger.info("===================================================")
+    logger.debug(f"After 1: {chr1}")
+    logger.debug(f"After 2: {chr2}")
+    logger.debug("===================================================")
     return creator.Individual(chr1), creator.Individual(chr2)
 
 
 def crossover_uniform(chr1: dict, chr2: dict) -> tuple:
     keys = list(search_space.keys())
-    logger.info("========== Crossover uniform ==========")
-    logger.info(f"Before 1: {chr1}")
-    logger.info(f"Before 2: {chr2}")
+    logger.debug("========== Crossover uniform ==========")
+    logger.debug(f"Before 1: {chr1}")
+    logger.debug(f"Before 2: {chr2}")
 
     for key in keys:
         if random.random() < 0.5:
@@ -249,9 +249,9 @@ def crossover_uniform(chr1: dict, chr2: dict) -> tuple:
     chr1 = generate(chr1)
     chr2 = generate(chr2)
 
-    logger.info(f"After 1: {chr1}")
-    logger.info(f"After 2: {chr2}")
-    logger.info("===================================================")
+    logger.debug(f"After 1: {chr1}")
+    logger.debug(f"After 2: {chr2}")
+    logger.debug("===================================================")
     return creator.Individual(chr1), creator.Individual(chr2)
 
 
@@ -260,8 +260,8 @@ def mutate_onepoint(chromosome: dict) -> tuple:
     keys = list(search_space.keys())
     # choose mutation point
     key: str = random.choice(keys)
-    logger.info(f"============== Mutation one point: {keys.index(key)} ==============")
-    logger.info(f"Before: {chromosome}")
+    logger.debug(f"============== Mutation one point: {keys.index(key)} ==============")
+    logger.debug(f"Before: {chromosome}")
 
     # mutation
     chromosome[key] = search_space[key]()
@@ -269,15 +269,15 @@ def mutate_onepoint(chromosome: dict) -> tuple:
     chromosome.update(dependent)
     chromosome = generate(chromosome)
 
-    logger.info(f"After: {chromosome}")
-    logger.info("===================================================")
+    logger.debug(f"After: {chromosome}")
+    logger.debug("===================================================")
     return creator.Individual(chromosome),
 
 
 def mutate_uniform(chromosome: dict) -> tuple:
     keys = list(search_space.keys())
-    logger.info("========== Mutation uniform ==========")
-    logger.info(f"Before: {chromosome}")
+    logger.debug("========== Mutation uniform ==========")
+    logger.debug(f"Before: {chromosome}")
 
     for key in keys:
         if random.random() < 0.5:
@@ -286,6 +286,6 @@ def mutate_uniform(chromosome: dict) -> tuple:
     chromosome.update(dependent)
     chromosome = generate(chromosome)
 
-    logger.info(f"After: {chromosome}")
-    logger.info("===================================================")
+    logger.debug(f"After: {chromosome}")
+    logger.debug("===================================================")
     return creator.Individual(chromosome),
