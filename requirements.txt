@@ -1,0 +1,9 @@
+tqdm==4.66.4
+torchpack==0.3.1
+# mmcv==1.4.0
+# mmcv-full==1.4.0
+mmdet==2.20.0
+nuscenes-devkit==1.1.11
+numpy<1.24
+yapf==0.40.1
+setuptools==59.5.0
