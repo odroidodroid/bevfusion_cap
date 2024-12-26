@@ -56,7 +56,7 @@ class GA:
 
         config_dict = chromosome_default_resnet()
         deep_update(config_dict, chromosome_to_config_dict(individual))
-        deep_update(config_dict['data'], chromosome_minidataset())
+        # deep_update(config_dict['data'], chromosome_minidataset())
         config_path = os.path.join(run_dir, f"{self.name}.yaml")
         with open(config_path, 'w') as f:
             yaml.dump(config_dict, f)
@@ -74,6 +74,7 @@ class GA:
         if checkpoint:
             pop, hof, logbook, gen = load_checkpoint(checkpoint)
         else:
+            gen = 0
             pop = self.toolbox.population(n=configs.MU)
             hof = tools.ParetoFront()
             stats = tools.Statistics(lambda ind: ind.fitness.values)
@@ -81,6 +82,7 @@ class GA:
             stats.register("std", numpy.std, axis=0)
             stats.register("min", numpy.min, axis=0)
             stats.register("max", numpy.max, axis=0)
+            logbook = None
 
         pop, logbook = custom_eaMuPlusLambda(
             pop, self.toolbox, configs.MU, configs.LAMBDA, configs.CXPB, configs.MUTPB, configs.NGEN,
