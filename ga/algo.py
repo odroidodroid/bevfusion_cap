@@ -79,20 +79,22 @@ def run_model(config_path, run_dir) :
     if exitcode != 0:
         logger.error(f"Process {process.pid} failed with exit code {exitcode}")
         return 100000.0, 0.0
-    else:
-        # evaluate latency
-        batch_size = 1
-        exitcode = subprocess.run(
-            f"nsys profile -y 6 -t cuda,nvtx -o {run_dir}/report1 --stats=true \
-            python tools/test.py {config_path} \
-            --data.samples_per_gpu={batch_size} --data.workers_per_gpu={batch_size} \
-            {run_dir}/latest.pth --eval bbox --disable_dist",
-            shell=True
-        ).returncode
+    
+    # evaluate latency
+    batch_size = 1
+    cmd = f"nsys profile -y 6 -t cuda,nvtx -o {run_dir}/report1 --stats=true \
+        python tools/test.py {config_path} \
+        --data.samples_per_gpu={batch_size} --data.workers_per_gpu={batch_size} \
+        {run_dir}/latest.pth --eval bbox --disable_dist"
+    exitcode = subprocess.run(cmd, shell=True).returncode
 
-        # get latency
-        latency = get_latency(run_dir)
-        #get mAP
-        mAP = get_map(run_dir)
+    if exitcode != 0:
+        logger.error(f"Process {process.pid} failed with exit code {exitcode}")
+        raise Exception(f"Failed to profile {run_dir}, check your command: {cmd}")
+
+    # get latency
+    latency = get_latency(run_dir)
+    #get mAP
+    mAP = get_map(run_dir)
         
     return latency, mAP

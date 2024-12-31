@@ -10,7 +10,7 @@ MU = 10     # population size
 ELITE = int(MU*0.2) # elite size
 LAMBDA = MU - ELITE # offspring size
 CXPB = 0.7  # crossover probability
-MUTPB = 1.0 # mutation probability
+MUTPB = 0.3 # mutation probability
 
 MINI_TRAIN_PKL = 'mini_infos_train.pkl'
 MINI_VALID_PKL = 'mini_infos_val.pkl'
