@@ -143,6 +143,12 @@ model:
     camera:
       backbone:
         depth: 50
+        # layers:
+        # - 4
+        # - 4
+        # - 6 
+        # - 4
+        # pretrained: '/root/once-for-all/subnets/subnet_4464.pth'
         init_cfg:
           checkpoint: https://download.pytorch.org/models/resnet50-0676ba61.pth
           type: Pretrained
@@ -151,6 +157,7 @@ model:
         - 2
         - 3
         type: ResNet
+        # type: CustomResNet
       neck:
         act_cfg:
           inplace: true

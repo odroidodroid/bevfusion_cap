@@ -1,4 +1,5 @@
 from .backbone import (encoder_camera_backbone_depth,
+                       encoder_camera_backbone_layers,
                        encoder_camera_backbone_init_cfg,
                        encoder_camera_backbone_out_indices)
 from .neck import encoder_camera_neck_in_channels

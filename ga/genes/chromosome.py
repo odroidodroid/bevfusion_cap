@@ -27,10 +27,11 @@ parameters = {
     "model.encoders.camera.vtransform.xbound": encoder_camera_vtransform_xbound,
     "model.encoders.camera.vtransform.ybound": encoder_camera_vtransform_ybound,
     "model.encoders.camera.vtransform.zbound": encoder_camera_vtransform_zbound,
-    "model.encoders.camera.backbone.depth": encoder_camera_backbone_depth,
+    #"model.encoders.camera.backbone.depth": encoder_camera_backbone_depth,
+    "model.encoders.camera.backbone.layers": encoder_camera_backbone_layers,
     "model.encoders.camera.backbone.out_indices": encoder_camera_backbone_out_indices,
     "model.encoders.camera.backbone.init_cfg": encoder_camera_backbone_init_cfg,
-    "model.encoders.camera.neck.in_channels": encoder_camera_neck_in_channels,
+    #"model.encoders.camera.neck.in_channels": encoder_camera_neck_in_channels,
     "model.encoders.lidar.backbone.encoder_channels": encoder_lidar_backbone_encoder_channels,
     "model.encoders.lidar.backbone.encoder_paddings": encoder_lidar_backbone_encoder_paddings,
     "model.encoders.lidar.backbone.output_channels": encoder_lidar_backbone_output_channels,
@@ -40,7 +41,8 @@ search_space = {
     key: val for key, val in parameters.items() if key in [
         "image_size",
         "model.encoders.camera.vtransform.xbound",
-        "model.encoders.camera.backbone.depth",
+        #"model.encoders.camera.backbone.depth",
+        "model.encoders.camera.backbone.layers",
         "model.encoders.camera.backbone.out_indices",
         "model.encoders.lidar.backbone.encoder_channels",
     ]}
@@ -55,12 +57,13 @@ def resolve_dependencies(key, chromosome) -> list:
         xbound = chromosome["model.encoders.camera.vtransform.xbound"]
         args = [xbound]
     elif key == "model.encoders.camera.backbone.init_cfg":
-        depth = chromosome["model.encoders.camera.backbone.depth"]
-        args = [depth]
-    elif key == "model.encoders.camera.neck.in_channels":
-        depth = chromosome["model.encoders.camera.backbone.depth"]
-        out_indices = chromosome["model.encoders.camera.backbone.out_indices"]
-        args = [depth, out_indices]
+        layers = chromosome["model.encoders.camera.backbone.layers"]
+        #depth = chromosome["model.encoders.camera.backbone.depth"]
+        args = [layers]
+    # elif key == "model.encoders.camera.neck.in_channels":
+    #     depth = chromosome["model.encoders.camera.backbone.depth"]
+    #     out_indices = chromosome["model.encoders.camera.backbone.out_indices"]
+    #     args = [depth, out_indices]
     elif key == "model.encoders.lidar.backbone.encoder_paddings":
         encoder_channels = chromosome["model.encoders.lidar.backbone.encoder_channels"]
         args = [encoder_channels]
