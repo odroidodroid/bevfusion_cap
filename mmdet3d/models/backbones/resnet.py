@@ -1,5 +1,6 @@
 from typing import List, Tuple
 
+import numpy as np
 import torch
 # from mmcv.cnn.resnet import BasicBlock, Bottleneck, make_res_layer
 from torch import nn
@@ -7,6 +8,8 @@ from mmdet.models import BACKBONES
 # from mmcv.runner import load_checkpoint
 import os
 from collections import OrderedDict
+
+
 
 save_dir = './'
 os.makedirs(save_dir, exist_ok=True)
@@ -70,13 +73,15 @@ class ResNetBottleneckBlock(nn.Module):
 class CustomResNet(nn.Module):
     def __init__(self,
                  layers, 
-                 out_indices=(0, 1, 2, 3),
-                 pretrained = None
+                 first_out_indice,
+                 pretrained
                  ):
         
         super(CustomResNet, self).__init__()
-        self.out_indices = out_indices
-        
+        self.first_out_indice = first_out_indice
+        self.layers = layers
+        self.pretrained = pretrained
+
         self.input_stem = nn.ModuleList([
             ConvLayer(3, 32, kernel_size=3, stride=2, padding=1), 
             ConvLayer(32, 64, kernel_size=3, stride=1, padding=1)
@@ -87,7 +92,7 @@ class CustomResNet(nn.Module):
         self.blocks = nn.ModuleList()
         
         in_channels = 64
-        for i, num_blocks in enumerate(layers):
+        for i, num_blocks in enumerate(self.layers):
             stride = 1 if i == 0 else 2
             out_channels = 64 * (2 ** i)
             
@@ -103,16 +108,26 @@ class CustomResNet(nn.Module):
                 self.blocks.append(ResNetBottleneckBlock(in_channels, out_channels, stride if j == 0 else 1, downsample))
                 in_channels = out_channels * 4
 
+        self.init_weights()
     
-    def init_weights(self, pretrained=None):
-        if isinstance(pretrained, str):
-            checkpoint = torch.load(pretrained)
-            print(checkpoint)
-            self.load_state_dict(checkpoint['state_dict'], strict=False)
-            print(f"Loaded pretrained weights from {pretrained}")
-        elif pretrained:
+    def init_weights(self):
+        print(f"pretrained_path: {self.pretrained}")
+        if isinstance(self.pretrained, str):
+            checkpoint = torch.load(self.pretrained)
+            missing_keys, unexpected_keys = self.load_state_dict(checkpoint, strict=False)
+
+            print(f"Missing keys: {missing_keys}")
+            print(f"Unexpected keys: {unexpected_keys}")
+
+            try:
+                self.load_state_dict(checkpoint, strict=False)
+                print(f"Loaded weights from {self.pretrained}")
+            except RuntimeError as e:
+                print(f"Error loading weights: {e}")
+                print("Ensure the checkpoint matches the model architecture.")
+        else:
             print("Pretrained argument is not a valid path.")
-        
+            
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -125,6 +140,7 @@ class CustomResNet(nn.Module):
                 nn.init.normal_(m.weight, 0, 0.01)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
+    
     def forward(self, x):
         for layer in self.input_stem:
             x = layer(x)
@@ -132,17 +148,26 @@ class CustomResNet(nn.Module):
         x = self.max_pooling(x)
         
         outs = []
+        cnt = 0
         for i, block in enumerate(self.blocks):
             x = block(x)
-            if i in self.out_indices:
-                outs.append(x)
-        
-        return tuple(outs)
+            if self.first_out_indice == 0:
+                if i + 1 == self.layers[0] or i + 1 == sum(self.layers[0:2]) or i + 1 == sum(self.layers[0:3]) :
+                    outs.append(x)
+            else:
+                if i + 1 == sum(self.layers[0:2]) or i + 1 == sum(self.layers[0:3]) or i + 1 == sum(self.layers[0:4]):
+                    outs.append(x)
+
+        if len(outs) == 1:
+            return outs[0]
+        else:
+            return tuple(outs)
 
 
-model = CustomResNet(layers = [4, 4, 6, 4])
-f = open(os.path.join(save_dir, f'ResNet.txt'), 'w')
-print(model, file=f)
-f.close()
+# model = CustomResNet(layers = [4, 4, 6, 4])
+# x = torch.zeros((1, 3, 224, 224), dtype=torch.float32)
+# f = open(os.path.join(save_dir, f'ResNet.txt'), 'w')
+# print(model, file=f)
+# f.close()
 
 

@@ -68,7 +68,7 @@ def main():
     datasets = [build_dataset(cfg.data.train)]
 
     model = build_model(cfg.model)
-    model.init_weights()
+    #model.init_weights()
     if cfg.get("sync_bn", None):
         if not isinstance(cfg["sync_bn"], dict):
             cfg["sync_bn"] = dict(exclude=[])

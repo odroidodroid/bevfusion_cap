@@ -142,22 +142,24 @@ model:
   encoders:
     camera:
       backbone:
-        depth: 50
-        # layers:
-        # - 4
-        # - 4
-        # - 6 
-        # - 4
-        # pretrained: '/root/once-for-all/subnets/subnet_4464.pth'
-        init_cfg:
-          checkpoint: https://download.pytorch.org/models/resnet50-0676ba61.pth
-          type: Pretrained
-        out_indices:
-        - 1
-        - 2
-        - 3
-        type: ResNet
-        # type: CustomResNet
+        # depth: 50
+        layers:
+        - 4
+        - 4
+        - 6 
+        - 4
+        pretrained: '/root/once-for-all/subnets/subnet_4464.pth'
+        # init_cfg:
+        #    checkpoint: https://download.pytorch.org/models/resnet50-0676ba61.pth
+        #    type: Pretrained
+        first_out_indice: 1
+        # out_indices:
+        # - 1
+        # - 2
+        # - 3
+        type: CustomResNet
+        # type: ResNet
+
       neck:
         act_cfg:
           inplace: true
