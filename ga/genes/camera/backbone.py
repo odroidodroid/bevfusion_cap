@@ -42,5 +42,9 @@ def encoder_camera_backbone_init_cfg(layers: list = None):
 
 
 def encoder_camera_backbone_out_indices():
-    variables = [[0, 1, 2], [1, 2, 3]]
+     variables = [[0, 1, 2], [1, 2, 3]]
+     return random.choice(variables)
+
+def encoder_camera_backbone_first_out_indice():
+    variables = [0, 1]
     return random.choice(variables)
