@@ -31,7 +31,8 @@ parameters = {
     "model.encoders.camera.backbone.layers": encoder_camera_backbone_layers,
     #"model.encoders.camera.backbone.out_indices": encoder_camera_backbone_out_indices,
     "model.encoders.camera.backbone.first_out_indice": encoder_camera_backbone_first_out_indice,
-    "model.encoders.camera.backbone.init_cfg": encoder_camera_backbone_init_cfg,
+    #"model.encoders.camera.backbone.init_cfg": encoder_camera_backbone_init_cfg,
+    "model.encoders.camera.backbone.pretrained": encoder_camera_backbone_pretrained,
     "model.encoders.camera.neck.in_channels": encoder_camera_neck_in_channels,
     "model.encoders.lidar.backbone.encoder_channels": encoder_lidar_backbone_encoder_channels,
     "model.encoders.lidar.backbone.encoder_paddings": encoder_lidar_backbone_encoder_paddings,
@@ -58,18 +59,21 @@ def resolve_dependencies(key, chromosome) -> list:
     if key == "model.encoders.camera.vtransform.ybound":
         xbound = chromosome["model.encoders.camera.vtransform.xbound"]
         args = [xbound]
-    elif key == "model.encoders.camera.backbone.init_cfg":
-        layers = chromosome["model.encoders.camera.backbone.layers"]
-        #depth = chromosome["model.encoders.camera.backbone.depth"]
-        args = [layers]
+    # elif key == "model.encoders.camera.backbone.init_cfg":
+    #     depth = chromosome["model.encoders.camera.backbone.depth"]
+    #     args = [depth]
     elif key == "model.encoders.camera.neck.in_channels":
         #depth = chromosome["model.encoders.camera.backbone.depth"]
         #out_indices = chromosome["model.encoders.camera.backbone.out_indices"]
         first_out_indice = chromosome["model.encoders.camera.backbone.first_out_indice"]
+        #args = [depth, out_indices]
         args = [first_out_indice]
     elif key == "model.encoders.lidar.backbone.encoder_paddings":
         encoder_channels = chromosome["model.encoders.lidar.backbone.encoder_channels"]
         args = [encoder_channels]
+    elif key == "model.encoders.camera.backbone.pretrained":
+        layers = chromosome["model.encoders.camera.backbone.layers"]
+        args = [layers]    
     # TODO: Add your dependencies
     else:
         pass

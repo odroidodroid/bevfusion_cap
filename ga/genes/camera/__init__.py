@@ -1,5 +1,6 @@
 from .backbone import (encoder_camera_backbone_depth,
                        encoder_camera_backbone_layers,
+                       encoder_camera_backbone_pretrained,
                        encoder_camera_backbone_init_cfg,
                        encoder_camera_backbone_out_indices,
                        encoder_camera_backbone_first_out_indice)
