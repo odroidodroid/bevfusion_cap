@@ -9,7 +9,6 @@ from ga.utils import configs, get_map, get_latency, logger, save_checkpoint, wri
 def custom_eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen,
                           startgen=0, stats=None, halloffame=None, logbook=None,
                           verbose=__debug__):
-    elite_num = mu - lambda_
     if logbook is None:
         logbook = tools.Logbook()
         logbook.header = ['gen', 'nevals'] + (stats.fields if stats else [])
@@ -19,12 +18,7 @@ def custom_eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen,
         logger.info(f"================== Generation {gen} ==================")
 
         # Vary the population
-        if gen==startgen:
-            offspring = population
-        else:
-            elite = population[:elite_num]
-            offspring = varOr(population, toolbox, lambda_, cxpb, mutpb)
-            offspring = elite + offspring
+        offspring = population if gen==startgen else varOr(population, toolbox, lambda_, cxpb, mutpb)
         # Evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
         invalid_ind_len = len(invalid_ind)
@@ -38,7 +32,7 @@ def custom_eaMuPlusLambda(population, toolbox, mu, lambda_, cxpb, mutpb, ngen,
 
         # Select the next generation population
         if gen != startgen:
-            population[:] = toolbox.select(offspring, mu)
+            population[:] = toolbox.select(population + offspring, mu)
 
         # Update the statistics with the new population
         record = stats.compile(population) if stats is not None else {}
@@ -85,20 +79,22 @@ def run_model(config_path, run_dir) :
     if exitcode != 0:
         logger.error(f"Process {process.pid} failed with exit code {exitcode}")
         return 100000.0, 0.0
-    else:
-        # evaluate latency
-        batch_size = 1
-        exitcode = subprocess.run(
-            f"nsys profile -y 6 -t cuda,nvtx -o {run_dir}/report1 --stats=true \
-            python tools/test.py {config_path} \
-            --data.samples_per_gpu={batch_size} --data.workers_per_gpu={batch_size} \
-            {run_dir}/latest.pth --eval bbox --disable_dist",
-            shell=True
-        ).returncode
+    
+    # evaluate latency
+    batch_size = 1
+    cmd = f"nsys profile -y 6 -t cuda,nvtx -o {run_dir}/report1 --stats=true \
+        python tools/test.py {config_path} \
+        --data.samples_per_gpu={batch_size} --data.workers_per_gpu={batch_size} \
+        {run_dir}/latest.pth --eval bbox --disable_dist"
+    exitcode = subprocess.run(cmd, shell=True).returncode
 
-        # get latency
-        latency = get_latency(run_dir)
-        #get mAP
-        mAP = get_map(run_dir)
+    if exitcode != 0:
+        logger.error(f"Process {process.pid} failed with exit code {exitcode}")
+        raise Exception(f"Failed to profile {run_dir}, check your command: {cmd}")
+
+    # get latency
+    latency = get_latency(run_dir)
+    #get mAP
+    mAP = get_map(run_dir)
         
     return latency, mAP
