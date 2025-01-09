@@ -1,5 +1,5 @@
 import random
-
+from itertools import product
 
 def encoder_camera_backbone_depth():
     variables = [18, 34, 50, 101, 152]
@@ -7,13 +7,7 @@ def encoder_camera_backbone_depth():
     return random.choice(variables)
 
 def encoder_camera_backbone_layers():
-    layers = []
-    for i in range(2, 5):
-        for j in range(2, 5):
-            for k in range(2, 7):
-                for l in range(2, 5):
-                    layers.append([i, j, k, l])
-    
+    layers = list(map(list, product(range(2, 5), range(2, 5), range(2, 7), range(2, 5))))
     return random.choice(layers)
 
 def encoder_camera_backbone_pretrained(layers: list = None):

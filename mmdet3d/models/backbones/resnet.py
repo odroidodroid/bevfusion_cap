@@ -2,18 +2,13 @@ from typing import List, Tuple
 
 import numpy as np
 import torch
-# from mmcv.cnn.resnet import BasicBlock, Bottleneck, make_res_layer
+from mmcv.cnn.resnet import BasicBlock, Bottleneck, make_res_layer
 from torch import nn
 from mmdet.models import BACKBONES
-# from mmcv.runner import load_checkpoint
-import os
+
 from collections import OrderedDict
 
-
-
-save_dir = './'
-os.makedirs(save_dir, exist_ok=True)
-__all__ = ["CustomResNet"]
+__all__ = ["CustomResNet", "GeneralizedResNet"]
 
 class ConvLayer(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, stride, padding):
@@ -163,11 +158,32 @@ class CustomResNet(nn.Module):
         else:
             return tuple(outs)
 
+@BACKBONES.register_module()
+class GeneralizedResNet(nn.ModuleList):
+    def __init__(
+        self,
+        in_channels: int,
+        blocks: List[Tuple[int, int, int]],
+    ) -> None:
+        super().__init__()
+        self.in_channels = in_channels
+        self.blocks = blocks
 
-# model = CustomResNet(layers = [4, 4, 6, 4])
-# x = torch.zeros((1, 3, 224, 224), dtype=torch.float32)
-# f = open(os.path.join(save_dir, f'ResNet.txt'), 'w')
-# print(model, file=f)
-# f.close()
+        for num_blocks, out_channels, stride in self.blocks:
+            blocks = make_res_layer(
+                BasicBlock,
+                in_channels,
+                out_channels,
+                num_blocks,
+                stride=stride,
+                dilation=1,
+            )
+            in_channels = out_channels
+            self.append(blocks)
 
-
+    def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
+        outputs = []
+        for module in self:
+            x = module(x)
+            outputs.append(x)
+        return outputs

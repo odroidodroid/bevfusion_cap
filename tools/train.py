@@ -68,7 +68,8 @@ def main():
     datasets = [build_dataset(cfg.data.train)]
 
     model = build_model(cfg.model)
-    #model.init_weights()
+    # model.init_weights() : build_model에서 init_weights() 수행하므로 중복되어 주석 처리
+    
     if cfg.get("sync_bn", None):
         if not isinstance(cfg["sync_bn"], dict):
             cfg["sync_bn"] = dict(exclude=[])

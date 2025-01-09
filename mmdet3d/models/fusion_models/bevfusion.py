@@ -19,8 +19,6 @@ from mmdet3d.models import FUSIONMODELS
 
 from .base import Base3DFusionModel
 
-import os
-
 __all__ = ["BEVFusion"]
 
 

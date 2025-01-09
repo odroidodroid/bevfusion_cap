@@ -2,8 +2,8 @@ from datetime import datetime
 
 current_time = datetime.now().strftime("%y%m%d-%H%M%S")
 PROJECT_DIR = f"./ga/results/{current_time}_search"
-CONDA_ENV = None
-NUM_GPUS = 2
+CONDA_ENV = 'bevfusion'
+NUM_GPUS = 4
 ##### Configs
 NGEN = 50
 MU = 10     # population size
