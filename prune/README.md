@@ -3,7 +3,7 @@
 ### 1. Re-generate pkl file
 1-1. modify center (mmdet3d/datasets/nuscenes_dataset.py)
 
-		# the nuscenes box center is [0.5, 0.5, 0.5], we change it to be
+	# the nuscenes box center is [0.5, 0.5, 0.5], we change it to be
         # the same as KITTI (0.5, 0.5, 0)
         # haotian: this is an important change: from 0.5, 0.5, 0.5 -> 0.5, 0.5, 0
         gt_bboxes_3d = LiDARInstance3DBoxes(
