@@ -133,9 +133,9 @@ class BEVFusion(Base3DFusionModel):
         nvtx.pop_range()
         batch_size = coords[-1, 0] + 1
         nvtx.push_range("lidar_backbone")
-        x = self.encoders["lidar"]["backbone"](feats, coords, batch_size, sizes=sizes)
+        x, loss_reg = self.encoders["lidar"]["backbone"](feats, coords, batch_size, sizes=sizes)
         nvtx.pop_range()
-        return x
+        return x, loss_reg
 
     @torch.no_grad()
     @force_fp32()
@@ -252,7 +252,7 @@ class BEVFusion(Base3DFusionModel):
                 nvtx.pop_range()
             elif sensor == "lidar":
                 # nvtx.push_range("lidar")
-                feature = self.extract_lidar_features(points)
+                feature, loss_reg = self.extract_lidar_features(points)
                 # nvtx.pop_range()
             else:
                 raise ValueError(f"unsupported sensor: {sensor}")
@@ -285,6 +285,7 @@ class BEVFusion(Base3DFusionModel):
                 if type == "object":
                     pred_dict = head(x, metas)
                     losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict)
+                    losses["pts_reg"] = loss_reg
                 elif type == "map":
                     losses = head(x, gt_masks_bev)
                 else:
@@ -302,6 +303,7 @@ class BEVFusion(Base3DFusionModel):
                     if type == "object":
                         pred_dict = head(x, metas)
                         losses = head.loss(gt_bboxes_3d, gt_labels_3d, pred_dict)
+                        losses["pts_reg"] = loss_reg
                     for name, val in losses.items():
                         if val.requires_grad:
                             outputs[f"loss/{type}/{name}"] = val * self.loss_scale[type]

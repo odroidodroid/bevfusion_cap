@@ -1,42 +1,32 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# import spconv.pytorch as spconv
-from spconv.core import ConvAlgo
 from torch.nn import Linear, Parameter
-from torch.nn.init import constant_, xavier_uniform_
-
-from mmcv.runner import auto_fp16, force_fp32, patch_norm_fp32, wrap_fp16_model
-from mmdet3d.ops import spconv
-from mmdet3d.ops.spconv import SparseConvTensor
+import copy
+from mmcv.runner import auto_fp16
+import spconv.pytorch as spconv
+from spconv.pytorch import SparseConvTensor
 from prune.spss.spconv_utils import replace_feature
 from prune.spss.split_voxels import check_repeat, split_voxels_v2
 
+def compress_voxels_by_coord(voxel_features, voxel_coords, coord_idx=0) :
+    coord = voxel_coords[:,coord_idx]
+    unique_coords, inverse_indices = torch.unique(coord, return_inverse=True)
+    compressed_features = torch.zeros(len(unique_coords), voxel_features.size(1), 
+                                      device=voxel_features.device, dtype=voxel_features.dtype)
+    compressed_features.index_add_(0, inverse_indices, voxel_features)
+    counts = torch.bincount(inverse_indices)
+    compressed_features /= counts.unsqueeze(1).half()
+    return compressed_features, inverse_indices
 
-class PointAttention(nn.Module) :
-    def __init__(self, embed_dim, dropout=0., bias=True, add_bis_kv=False, add_zero_attn=False, kdim=None, vdim=None) :
-        super(PointAttention,self).__init__()
-        self.embed_dim = embed_dim
-        self.kdim = kdim if kdim is not None else embed_dim
-        self.vdim = vdim if vdim is not None else embed_dim
-        
-        self.in_proj_weight = Parameter(torch.empty(3 * embed_dim, embed_dim))
-        if bias :
-            self.in_proj_bias = Parameter(torch.empty(3 * embed_dim))
-        self.out_proj = Linear(embed_dim, embed_dim, bias=bias)
-        
-        self._reset_parameters()
-        
-    def _reset_parameters(self) :
-        xavier_uniform_(self.in_proj_weight)
-        if self.in_proj_bias is not None :
-            constant_(self.in_proj_bias, 0.)
-            constant_(self.out_proj.bias, 0.)
+def attention(q, k):
+    scale = q.size(-1) ** 0.5  # Scaling factor for stability
+    attn_weights = torch.matmul(k, q.T) / scale
+    attn_weights = torch.softmax(attn_weights, dim=-1)
+    attn_weights = torch.matmul(attn_weights, q) / scale
+    attn_weights = torch.softmax(attn_weights, dim=-1)
+    return attn_weights
 
-    def forward(self, query, key, value) :
-        q, k, v = F.linear(query, self.in_proj_weight, self.in_proj_bias).chunk(3, -1)
-        return 
-    
 class SparseSequentialBatchdict(spconv.SparseSequential):
     def __init__(self, *args, **kwargs):
         super(SparseSequentialBatchdict, self).__init__(*args, **kwargs)
@@ -49,7 +39,7 @@ class SparseSequentialBatchdict(spconv.SparseSequential):
         return input, batch_dict
 
 
-class SpatialPrunedSubmConvBlock(spconv.SparseModule):
+class SpatialPrunedSubmConv3d(spconv.SparseModule):
     def __init__(self, 
                  in_channels, 
                  out_channels, 
@@ -60,12 +50,12 @@ class SpatialPrunedSubmConvBlock(spconv.SparseModule):
                  padding=0, 
                  bias=False, 
                  pruning_ratio=0.5,
-                 pred_mode="attn_pred",
+                 pred_mode="perspective_attn",
                  pred_kernel_size=None,
                  point_cloud_range=[-3, -40, 0, 1, 40, 70.4],
                  voxel_size = [0.1, 0.05, 0.05],
-                 algo=ConvAlgo.Native,
-                 pruning_mode="topk"):
+                 pruning_mode="topk",
+                 ta=0.9):
         super().__init__()
         self.indice_key = indice_key
         self.pred_mode =  pred_mode
@@ -87,19 +77,6 @@ class SpatialPrunedSubmConvBlock(spconv.SparseModule):
         self.point_cloud_range = torch.Tensor(point_cloud_range).cuda()
         self.voxel_size = torch.Tensor(voxel_size).cuda()
     
-        if pred_mode=="learnable":
-            assert pred_kernel_size is not None
-            self.pred_conv = spconv.SubMConv3d(
-                    in_channels,
-                    1,
-                    kernel_size=pred_kernel_size,
-                    stride=1,
-                    padding=padding,
-                    bias=False,
-                    indice_key=indice_key + "_pred_conv",
-                    # algo=algo
-                )
-
         self.conv_block = spconv.SubMConv3d(
                                         in_channels,
                                         out_channels,
@@ -108,12 +85,8 @@ class SpatialPrunedSubmConvBlock(spconv.SparseModule):
                                         padding=padding,
                                         bias=bias,
                                         indice_key=indice_key,
-                                        # subm_torch=False,
-                                        # algo=algo
                                     )
-        
         self.sigmoid = nn.Sigmoid()
-        self.self_attn = PointAttention()
         
     def _combine_feature(self, x_im, x_nim, mask_position):
         assert x_im.features.shape[0] == x_nim.features.shape[0] == mask_position.shape[0]
@@ -151,27 +124,12 @@ class SpatialPrunedSubmConvBlock(spconv.SparseModule):
             x_features = x.features
             x_attn_predict = torch.abs(x_features).sum(1) / x_features.shape[1]
             voxel_importance = self.sigmoid(x_attn_predict.view(-1, 1)).half()
-        # elif self.pred_mode=='self_attn' :
-        #     x_features = x.features
-        #     x_self_attn = self_attn(x_features)
-        #     voxel_importance = self.sigmoid(x_self_attn)
         else:
              raise Exception('pred_mode is not defined')
-
-        # get mask
-        mask_position = self.get_importance_mask(x, voxel_importance)
-
-        # conv
-        x_nim = x[~mask_position].half()
-        x_im = self.conv_block(x[mask_position])
-        # x = x.replace_feature(x.features * voxel_importance)
-        # x_nim = x
-        # x_im = self.conv_block(x)        
-
-        # mask feature
-        out = self._combine_feature(x_im, x_nim, mask_position)
-        # out = x_im # ??
-        # out = x_nim + x_im # ??
+        x_im, x_nim = self.gemerate_sparse_tensor(x, voxel_importance)
+        out = self.combine_feature(x_im, x_nim, remove_repeat=True).half()
+        out = self.conv_block(out) ## out
+        out = self.reset_spatial_shape(out)
         return out, batch_dict
 
 
@@ -190,10 +148,11 @@ class SpatialPrunedConvDownsample(spconv.SparseModule):
                  voxel_stride=1,
                  point_cloud_range=[-3, -40, 0, 1, 40, 70.4],
                  voxel_size=[0.1, 0.05, 0.05],
-                 pred_mode="attn_pred",
+                 loss_mode=None,
+                 pred_mode="perspective_attn",
                  pred_kernel_size=None,
-                 algo=ConvAlgo.Native,
-                 pruning_mode="topk"):
+                 pruning_mode="topk",
+                 ta=0.9):
         super().__init__()
         if isinstance(padding, int):
             self.padding = [padding] * 3
@@ -211,6 +170,7 @@ class SpatialPrunedConvDownsample(spconv.SparseModule):
         self.inv_idx =  torch.Tensor([2, 1, 0]).long().cuda()
         
         self.pruning_mode = pruning_mode
+        self.loss_mode = loss_mode
         
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -219,45 +179,16 @@ class SpatialPrunedConvDownsample(spconv.SparseModule):
         self.point_cloud_range = torch.Tensor(point_cloud_range).cuda()
         self.voxel_size = torch.Tensor(voxel_size).cuda()
     
-        if pred_mode=="learnable":
-            assert pred_kernel_size is not None
-            self.pred_conv = spconv.SubMConv3d(
-                    in_channels,
-                    1,
-                    kernel_size=pred_kernel_size,
-                    stride=1,
-                    padding=padding,
-                    bias=False,
-                    indice_key=indice_key + "_pred_conv",
-                    # algo=algo
-                )
-
-
-        # self.conv_block = spconv.SubMConv3d(
-        #                                 in_channels,
-        #                                 out_channels,
-        #                                 kernel_size=kernel_size,
-        #                                 stride=stride,
-        #                                 ## stride=1,
-        #                                 padding=padding,
-        #                                 bias=bias,
-        #                                 indice_key=indice_key,
-        #                                 # subm_torch=False,
-        #                                 # algo=algo
-        #                             )
-
         self.conv_block = spconv.SparseConv3d(
                                         in_channels,
                                         out_channels,
                                         kernel_size=kernel_size,
-                                        # stride=stride,
-                                        stride=1,
+                                        stride=2,
                                         padding=padding,
                                         bias=bias,
                                         indice_key=indice_key,
-                                        # subm_torch=False,
-                                        # algo=algo
                                     )
+        self.ta = ta
 
 
         _step = int(kernel_size//2)
@@ -266,6 +197,33 @@ class SpatialPrunedConvDownsample(spconv.SparseModule):
         self.kernel_offsets = torch.Tensor(kernel_offsets).cuda().int()  
 
         self.sigmoid = nn.Sigmoid()
+        self.classifier = nn.Linear(in_channels, 2)
+
+    def loss_reg(self, prob) :
+        N = prob.shape[0]
+        loss = (self.ta - (1/N)*torch.sum(prob))**2
+        return loss
+
+    def compute_voxel_prob_softmax(self, voxel_features) :
+        logits = self.classifier(voxel_features)
+        prob = torch.exp(logits[:,1]) / (torch.exp(logits[:,0]) + torch.exp(logits[:,1]))
+        return prob
+
+    def compute_voxel_prob_gumbel(self, voxel_features) :
+        logits = self.classifier(voxel_features)
+        rand_noise0 = -torch.log(-torch.log(torch.rand(logits[:,0].shape, device=logits.device)))
+        rand_noise1 = -torch.log(-torch.log(torch.rand(logits[:,0].shape, device=logits.device)))
+
+        prob = torch.exp(logits[:,1]+rand_noise1) / (torch.exp(logits[:,0]+rand_noise0) + torch.exp(logits[:,1]+rand_noise1))
+
+        return prob
+
+    def compute_voxel_prob_pa(self, voxel_features, voxel_coords) :
+        plane_yz, inverse_indices_yz = compress_voxels_by_coord(voxel_features, voxel_coords, 1)
+        plane_xz, inverse_indices_xz = compress_voxels_by_coord(voxel_features, voxel_coords, 2)
+        voxel_attn_weights = attention(plane_yz, plane_xz)
+        voxel_attn_weights = voxel_attn_weights[inverse_indices_yz]
+        return voxel_attn_weights
 
     def gemerate_sparse_tensor(self, x, voxel_importance):
         batch_size = x.batch_size
@@ -333,22 +291,60 @@ class SpatialPrunedConvDownsample(spconv.SparseModule):
 
     def forward(self, x, batch_dict):
 
-        if self.pred_mode=="learnable":
-            x_ = x
-            x_conv_predict = self.pred_conv(x_)
-            voxel_importance = self.sigmoid(x_conv_predict.features) # [N, 1]
-        elif self.pred_mode=="attn_pred":
+        if self.pred_mode=="attn_pred":
             x_features = x.features
             x_attn_predict = torch.abs(x_features).sum(1) / x_features.shape[1]
             voxel_importance = self.sigmoid(x_attn_predict.view(-1, 1)).half()
+            x_im, x_nim = self.gemerate_sparse_tensor(x, voxel_importance)
+            out = self.combine_feature(x_im, x_nim, remove_repeat=True).half()
+            out = self.conv_block(out) ## out
+            out = self.reset_spatial_shape(out)
+        elif self.pred_mode=="softmax":
+            x_features = x.features
+            voxel_importance = self.compute_voxel_prob_softmax(x_features)
+            if self.training :
+                loss_pts_softmax = self.loss_reg(voxel_importance)
+                batch_dict['loss_reg_voxel_prob'] += loss_pts_softmax
+                x.replace_feature(x_features * voxel_importance)
+            else :
+                voxel_mask = voxel_importance > self.pruning_ratio
+                x.replace_feature(x_features[voxel_mask])
+            out = self.conv_block(x)
+        elif self.pred_mode=="perspective_attn":
+            x_features = x.features
+            x_coords = x.indices
+            voxel_importance = self.compute_voxel_prob_pa(x_features, x_coords)
+            if self.training :
+                loss_pts_softmax = self.loss_reg(voxel_importance)
+                batch_dict['loss_reg_voxel_prob'] += loss_pts_softmax
+                x.replace_feature(x_features * voxel_importance)
+            else :
+                voxel_mask = voxel_importance > self.pruning_ratio
+                x.replace_feature(x_features[voxel_mask])
+            out = self.conv_block(x)
         else:
              raise Exception('pred_mode is not define')
 
-        x_im, x_nim = self.gemerate_sparse_tensor(x, voxel_importance)
-        out = self.combine_feature(x_im, x_nim, remove_repeat=True).half()
-        value_mask = None
-        out = self.conv_block(out) ## out
-        pair_indices = None
-        out = self.reset_spatial_shape(out, batch_dict, pair_indices, value_mask).half()
-        
         return out, batch_dict
+
+    def calculate_flops(self, x, batch_dict, mask_position):
+        # mask_position = mask_position_ori
+        if mask_position.dtype == torch.bool:
+            mask_position = torch.nonzero(mask_position).view(-1,)
+        pair_indices = copy.deepcopy(x.indice_dict[self.indice_key].indice_pairs)
+        pair_indices_in = pair_indices[0] # [k**3, N]
+        pair_indices_out = pair_indices[1] # [k**3, N]
+        mask = torch.isin(pair_indices_out, mask_position)
+        # print("before mask:", (pair_indices_out > -1).sum())
+        pair_indices_out[mask] = -1
+        # print("after mask:", (pair_indices_out > -1).sum())
+        cur_flops = 2 * (pair_indices_out > -1).sum() * self.in_channels * self.out_channels - pair_indices_out.shape[1]
+        batch_dict["3dbackbone_flops"] += cur_flops
+
+    def write_obj(self, points, colors, out_filename):
+        N = points.shape[0]
+        fout = open(out_filename, 'w')
+        for i in range(N):
+            c = colors[i]
+            fout.write('v %f %f %f %d %d %d\n' % (points[i, 0], points[i, 1], points[i, 2], c[0], c[1], c[2]))
+        fout.close()

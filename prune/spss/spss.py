@@ -1,14 +1,15 @@
 # Copyright (c) OpenMMLab. All rights reserved.
-from mmcv.runner import auto_fp16, force_fp32, wrap_fp16_model, patch_norm_fp32
+from mmcv.runner import auto_fp16
 from torch import nn as nn
 from functools import partial
 
-from mmdet3d.ops import SparseBasicBlock, make_sparse_convmodule
-from mmdet3d.ops import spconv as spconv
+# from mmdet3d.ops import SparseBasicBlock, make_sparse_convmodule
+# from mmdet3d.ops import spconv as spconv
+import spconv.pytorch as spconv
+from spconv.pytorch import SparseSequential
 from mmdet.models import BACKBONES
 from prune.spss.spconv_utils import replace_feature
-from prune.spss.pruning_block import SpatialPrunedSubmConvBlock, SpatialPrunedConvDownsample, SparseSequentialBatchdict
-from spconv.core import ConvAlgo
+from prune.spss.pruning_block import SpatialPrunedSubmConv3d, SpatialPrunedConvDownsample, SparseSequentialBatchdict
 
 @BACKBONES.register_module()
 class VoxelPruningSparseEncoder(nn.Module):
@@ -46,7 +47,10 @@ class VoxelPruningSparseEncoder(nn.Module):
         pruning_ratio=[[0.5, 0.5], [0.5, 0.5], [0.5, 0.5], [0.5, 0.5]],
         downsampling_pruning_mode='topk',
         pruning_mode='topk',
-        init_cfg=None
+        pred_mode='perspective_attn',
+        init_cfg=None,
+        order=None,
+        block_type=None
     ):
         super().__init__()
         # assert block_type in ["conv_module", "basicblock", "postact_block", "conv_block"]
@@ -61,30 +65,33 @@ class VoxelPruningSparseEncoder(nn.Module):
         # Spconv init all weight on its own
         norm_fn = partial(nn.BatchNorm1d, eps=1e-3, momentum=0.01)        
 
-        self.conv_input = make_sparse_convmodule(
+        self.conv1 = spconv.SubMConv3d(
             in_channels,
             self.base_channels,
             3,
-            norm_cfg=dict(type="BN1d", eps=1e-3, momentum=0.01),
             padding=1,
-            indice_key="subm1",
-            conv_type="SubMConv3d",
+            indice_key='subm1',
+            bias=False
         )
+        self.relu1 = nn.ReLU()
+        self.bn1 = norm_fn(self.base_channels)
+        self.conv_input = SparseSequential(self.conv1, self.bn1, self.relu1)
 
         encoder_out_channels = self.make_encoder_layers(
-            self.base_channels, norm_fn, downsample_pruning_ratio, pruning_ratio, downsampling_pruning_mode, pruning_mode
+            self.base_channels, norm_fn, downsample_pruning_ratio, pruning_ratio, downsampling_pruning_mode, pruning_mode, pred_mode
         )
 
-        self.conv_out = make_sparse_convmodule(
+        self.conv2 = spconv.SparseConv3d(
             encoder_out_channels,
             self.output_channels,
             kernel_size=(1, 1, 3),
             stride=(1, 1, 2),
-            norm_cfg=dict(type="BN1d", eps=1e-3, momentum=0.01),
             padding=0,
-            indice_key="spconv_down2",
-            conv_type="SparseConv3d",
+            indice_key="spconv_down2"
         )
+        self.relu2 = nn.ReLU()
+        self.bn2 = norm_fn(self.output_channels)
+        self.conv_out = SparseSequential(self.conv2, self.bn2, self.relu2)
 
     @auto_fp16(apply_to=("voxel_features",))
     def forward(self, voxel_features, coors, batch_size, **kwargs):
@@ -110,7 +117,8 @@ class VoxelPruningSparseEncoder(nn.Module):
 
         batch_dict = {'batch_size' : batch_size,
                       'voxel_features' : voxel_features,
-                      'voxel_coords' : coors}
+                      'voxel_coords' : coors,
+                      'loss_reg_voxel_prob' : 0}
 
         encode_features = []
         for encoder_layer in self.encoder_layers:
@@ -126,7 +134,7 @@ class VoxelPruningSparseEncoder(nn.Module):
         spatial_features = spatial_features.permute(0, 1, 4, 2, 3).contiguous()
         spatial_features = spatial_features.view(N, C * D, H, W)
 
-        return spatial_features
+        return spatial_features, batch_dict['loss_reg_voxel_prob']
 
     def make_encoder_layers(
         self,
@@ -135,7 +143,8 @@ class VoxelPruningSparseEncoder(nn.Module):
         downsample_pruning_ratio, 
         pruning_ratio, 
         downsampling_pruning_mode, 
-        pruning_mode
+        pruning_mode,
+        pred_mode='perspective_attn'
     ):
         """make encoder layers using sparse convs.
 
@@ -168,15 +177,14 @@ class VoxelPruningSparseEncoder(nn.Module):
                             out_channels,
                             3,
                             norm_fn=norm_fn,
-                            voxel_stride=2**i,
                             stride=2,
                             padding=padding,
                             indice_key=f"spconv{i + 1}",
-                            conv_type="spconv",
-                            # conv_type="sprs",
+                            conv_type="sprs",
                             downsample_pruning_mode=downsampling_pruning_mode,
-                            pruning_mode=pruning_mode,
-                            pruning_ratio=downsample_pruning_ratio[i]
+                            loss_mode=None,
+                            pruning_ratio=downsample_pruning_ratio[i],
+                            pred_mode=pred_mode
                         )
                     )
                 else :
@@ -185,12 +193,11 @@ class VoxelPruningSparseEncoder(nn.Module):
                             out_channels,
                             out_channels,
                             norm_fn=norm_fn,
-                            voxel_stride=2**i,
                             padding=padding,
-                            indice_key=f"subm{i + 1}_{j + 1}",
-                            conv_types=["spss","spss"],
+                            indice_key=f"subm{i + 1}",
+                            conv_types="subm",
                             pruning_mode=pruning_mode,
-                            pruning_ratio=0.5
+                            pruning_ratio=pruning_ratio[i]
                         )
                     )
                 in_channels = out_channels
@@ -201,8 +208,8 @@ class VoxelPruningSparseEncoder(nn.Module):
     
 
 class PostActBlock(spconv.SparseModule):
-    def __init__(self, in_channels, out_channels, kernel_size, voxel_stride=1, indice_key=None, stride=1, padding=0, pruning_ratio=0.5, point_cloud_range=[-5.0, -54, -54, 3.0, 54, 54], voxel_size=[0.2, 0.075, 0.075],
-                   conv_type='subm', norm_fn=None, algo=ConvAlgo.Native, pruning_mode="topk", downsample_pruning_mode="thre"):
+    def __init__(self, in_channels, out_channels, kernel_size, indice_key=None, stride=1, padding=0, pruning_ratio=0.5,
+                   conv_type='subm', norm_fn=None, loss_mode=None, downsample_pruning_mode="topk", pred_mode='perspective_attn'):
         super().__init__()
         self.indice_key = indice_key
         self.in_channels = in_channels
@@ -219,33 +226,28 @@ class PostActBlock(spconv.SparseModule):
             self.conv = spconv.SparseInverseConv3d(in_channels, out_channels, kernel_size, indice_key=indice_key, bias=False)
         elif conv_type == "sprs":
             self.conv = SpatialPrunedConvDownsample(in_channels, out_channels, kernel_size, stride=stride, padding=padding, indice_key=indice_key, bias=False, 
-                pruning_ratio=pruning_ratio, pred_mode="attn_pred", pred_kernel_size=None,  algo=algo, pruning_mode=downsample_pruning_mode,
-                point_cloud_range=point_cloud_range, voxel_size=voxel_size, voxel_stride=voxel_stride)
-        elif conv_type == "spss":
-            self.conv = SpatialPrunedSubmConvBlock(
-                in_channels, out_channels, kernel_size,  voxel_stride, stride=stride, padding=padding, indice_key=indice_key, bias=False, 
-                pruning_ratio=pruning_ratio, pred_mode="attn_pred", pred_kernel_size=None, point_cloud_range=point_cloud_range, voxel_size=voxel_size, algo=algo, pruning_mode=pruning_mode)
+                                                    pred_mode=pred_mode, loss_mode=loss_mode, pruning_mode=downsample_pruning_mode)        
         else:
             raise NotImplementedError        
 
         self.bn1 = norm_fn(out_channels)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.ReLU()
 
     def forward(self, x, batch_dict):
-        if isinstance(self.conv, (SpatialPrunedSubmConvBlock,)) or isinstance(self.conv, (SpatialPrunedConvDownsample,)):
+        if isinstance(self.conv, (SpatialPrunedConvDownsample,)):
             x, batch_dict = self.conv(x, batch_dict)
         else:
             x = self.conv(x)
             
-        x = replace_feature(x, self.bn1(x.features))
-        x = replace_feature(x, self.relu(x.features))
+        x = x.replace_feature(self.bn1(x.features))
+        x = x.replace_feature(self.relu(x.features))
         return x, batch_dict
     
 class PruneSparseBasicBlock(spconv.SparseModule):
     expansion = 1
 
-    def __init__(self, inplanes, planes, voxel_stride=1, indice_key=None, stride=1, padding=0, pruning_ratio=0.5, point_cloud_range=[-5.0, -54, -54, 3.0, 54, 54], voxel_size=[0.2, 0.075, 0.075],
-                   conv_types=['subm', 'subm'], norm_fn=None, downsample=None, algo=ConvAlgo.Native, pruning_mode="topk"):
+    def __init__(self, inplanes, planes, indice_key=None, stride=1, padding=0, pruning_ratio=0.5,
+                   conv_types='subm', norm_fn=None, downsample=None, pruning_mode="topk"):
         super(PruneSparseBasicBlock, self).__init__()
 
         assert norm_fn is not None
@@ -253,64 +255,38 @@ class PruneSparseBasicBlock(spconv.SparseModule):
         self.indice_key = indice_key
         self.inplanes = inplanes
         self.planes = planes
-        
-        self.conv1 = conv_block(
-            inplanes, planes, 3, voxel_stride=voxel_stride, norm_fn=norm_fn, padding=padding, bias=bias, indice_key=indice_key+"_1", conv_type= conv_types[0], pruning_ratio=pruning_ratio,
-                  point_cloud_range=point_cloud_range, voxel_size=voxel_size, algo=algo, pruning_mode=pruning_mode
-        )
-        self.bn1 = norm_fn(planes)
-        self.relu = nn.ReLU(inplace=True)
+        if conv_types=="subm" :
+            self.conv1 = spconv.SubMConv3d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=bias, indice_key=indice_key)
+            self.conv2 = spconv.SubMConv3d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=bias, indice_key=indice_key)
+        elif conv_types=="spss" :            
+            self.conv1 = SpatialPrunedSubmConv3d(
+                inplanes, planes, 3, norm_fn=norm_fn, padding=padding, bias=bias, indice_key=indice_key+"_1", pruning_ratio=pruning_ratio, pruning_mode=pruning_mode)
+            self.conv2 = SpatialPrunedSubmConv3d(
+                planes, planes, 3, norm_fn=norm_fn, padding=padding, bias=bias, indice_key=indice_key+"_2", pruning_ratio=pruning_ratio, pruning_mode=pruning_mode)
 
-        self.conv2 = conv_block(
-            planes, planes, 3, voxel_stride=voxel_stride, norm_fn=norm_fn, padding=padding, bias=bias, indice_key=indice_key+"_2", conv_type= conv_types[1], pruning_ratio=pruning_ratio,
-                  point_cloud_range=point_cloud_range, voxel_size=voxel_size, algo=algo, pruning_mode=pruning_mode
-        )
+        self.bn1 = norm_fn(planes)
         self.bn2 = norm_fn(planes)
+        self.relu = nn.ReLU()
         self.downsample = downsample
         self.stride = stride
 
     def forward(self, x, batch_dict):
         identity = x
-        if isinstance(self.conv1, (SpatialPrunedSubmConvBlock,)) or isinstance(self.conv1, (SpatialPrunedConvDownsample,)):
+        if isinstance(self.conv1, SpatialPrunedSubmConv3d) :
             out, batch_dict = self.conv1(x, batch_dict)
-        else:
+        else :
             out = self.conv1(x)
-        out = replace_feature(out, self.bn1(out.features))
-        out = replace_feature(out, self.relu(out.features))
-
-        if isinstance(self.conv2, (SpatialPrunedSubmConvBlock,)) or isinstance(self.conv2, (SpatialPrunedConvDownsample,)):
+        out = out.replace_feature(self.bn1(out.features))
+        out = out.replace_feature(self.relu(out.features))
+        if isinstance(self.conv2, SpatialPrunedSubmConv3d) :
             out, batch_dict = self.conv2(out, batch_dict)
-        else:
+        else :
             out = self.conv2(out)
-        out = replace_feature(out, self.bn2(out.features))
+        out = out.replace_feature(self.bn2(out.features))
 
         if self.downsample is not None:
             identity = self.downsample(x)
-        out = replace_feature(out, out.features + identity.features)
-        out = replace_feature(out, self.relu(out.features))
+        out = out.replace_feature(out.features + identity.features)
+        out = out.replace_feature(self.relu(out.features))
 
         return out, batch_dict
-
-def conv_block(in_channels, out_channels, kernel_size, voxel_stride=1, indice_key=None, stride=1, bias=False, padding=0, pruning_ratio=0.5, point_cloud_range=[-5.0, -54, -54, 3.0, 54, 54], voxel_size=[0.2, 0.075, 0.075],
-                   conv_type='spss', norm_fn=None, algo=ConvAlgo.Native, pruning_mode="topk", downsample_pruning_mode="topk"):
-
-    if conv_type == 'subm':
-        conv = spconv.SubMConv3d(in_channels, out_channels, kernel_size, bias=bias, indice_key=indice_key)
-    elif conv_type == 'subm_1':
-        conv = spconv.SubMConv3d(in_channels, out_channels, 1, bias=bias, indice_key=indice_key)
-    elif conv_type == 'spconv':
-        conv = spconv.SparseConv3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding,
-                                bias=bias, indice_key=indice_key)
-    elif conv_type == 'inverseconv':
-        conv = spconv.SparseInverseConv3d(in_channels, out_channels, kernel_size, indice_key=indice_key, bias=bias)
-    elif conv_type == "sprs":
-        conv = SpatialPrunedConvDownsample(in_channels, out_channels, kernel_size, stride=stride, padding=padding, indice_key=indice_key, bias=False, 
-            pruning_ratio=pruning_ratio, pred_mode="attn_pred", pred_kernel_size=None, algo=algo, pruning_mode=downsample_pruning_mode)
-    elif conv_type == "spss":
-        conv = SpatialPrunedSubmConvBlock(
-            in_channels, out_channels, kernel_size,  voxel_stride, stride=stride, padding=padding, indice_key=indice_key, bias=bias, 
-            pruning_ratio=pruning_ratio, pred_mode="attn_pred", pred_kernel_size=None, point_cloud_range=point_cloud_range, voxel_size=voxel_size, algo=algo, pruning_mode=pruning_mode)
-    else:
-        raise NotImplementedError     
-    
-    return conv

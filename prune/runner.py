@@ -7,19 +7,14 @@ import torch
 
 import mmcv
 import prune.torch_pruning as tp
-import wandb
 from mmcv.parallel import MMDistributedDataParallel
 from mmcv.runner import EpochBasedRunner, _load_checkpoint, load_state_dict
 from mmcv.runner.builder import RUNNERS
 from mmcv.runner.hooks import HOOKS, Fp16OptimizerHook
 from mmcv.runner.utils import get_host_info
-from mmdet3d.ops.spconv import SparseConv3d, SubMConv3d, SparseSequential
 from mmdet3d.ops.voxel import Voxelization
 from mmdet3d.runner import CustomEpochBasedRunner
 from prune.pruner import prune_to_target_flops, prune_to_target_ratio
-from prune.spss.pruning_block import (SpatialPrunedConvDownsample,
-                                      SpatialPrunedSubmConvBlock,
-                                      SparseSequentialBatchdict)
 
 
 @RUNNERS.register_module()
@@ -150,14 +145,13 @@ class CustomPruningEpochBasedRunner(CustomEpochBasedRunner):
         feats, coords, sizes = voxelize(lidar_inputs)
         batch_size = coords[-1, 0] + 1
         base_ops, base_params = tp.utils.count_ops_and_params(self.model.module.encoders.lidar.backbone, (feats, coords, batch_size))
-        # TODO : replace lidar model or wrapping 
-        prune_to_spss_sprs(self.model.module.encoders.lidar.backbone, self.prune_cfg.lidar)
-        pruned_ops, pruned_size = tp.utils.count_ops_and_params(self.model.module.encoders.lidar.backbone, lidar_inputs)
 
-        self.logger.info("="*16)
-        self.logger.info("After lidar pruning...")
-        self.logger.info("Params: {:.2f} M => {:.2f} M ({:.2f}%)".format(base_params / 1e6, pruned_size / 1e6, pruned_size / base_params * 100))
-        self.logger.info("Ops: {:.2f} G => {:.2f} G ({:.2f}%, {:.2f}X )".format(base_ops / 1e9, pruned_ops / 1e9, pruned_ops / base_ops * 100, base_ops / pruned_ops))
+
+
+        # self.logger.info("="*16)
+        # self.logger.info("After lidar pruning...")
+        # self.logger.info("Params: {:.2f} M => {:.2f} M ({:.2f}%)".format(base_params / 1e6, pruned_size / 1e6, pruned_size / base_params * 100))
+        # self.logger.info("Ops: {:.2f} G => {:.2f} G ({:.2f}%, {:.2f}X )".format(base_ops / 1e9, pruned_ops / 1e9, pruned_ops / base_ops * 100, base_ops / pruned_ops))
 
         self.model = MMDistributedDataParallel(self.model.module.cuda(),
                                         device_ids=[torch.cuda.current_device()],
@@ -168,77 +162,6 @@ class CustomPruningEpochBasedRunner(CustomEpochBasedRunner):
         
     def finetune(self, data_loader, **kwargs):
         super().train(data_loader, **kwargs)        
-
-
-    def load_checkpoint(self, 
-                        checkpoint, 
-                        map_location='cpu', 
-                        strict=False, 
-                        logger=None, 
-                        revise_keys=[(r'^module\.', '')]) :
-        lid_only_file_name = checkpoint
-                    
-        lidar_checkpoint = _load_checkpoint(lid_only_file_name, map_location, logger)
-        if not isinstance(lidar_checkpoint, dict) :
-            raise RuntimeError(f"No state_dict found in lidar_checkpoint file {lid_only_file_name}")
-        if 'state_dict' in lidar_checkpoint :
-            lid_state_dict = lidar_checkpoint['state_dict']
-        else :
-            lid_state_dict = lidar_checkpoint
-
-        checkpoint = lid_state_dict
-
-        revise_keys = [('encoders.lidar.backbone.encoder_layers.encoder_layer1.0.conv1.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer1.0.conv1.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer1.0.conv2.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer1.0.conv2.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer1.1.conv1.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer1.1.conv1.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer1.1.conv2.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer1.1.conv2.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer1.2.0.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer1.2.conv.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer1.2.1.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer1.2.bn1.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer1.2.1.bias', 'encoders.lidar.backbone.encoder_layers.encoder_layer1.2.bn1.bias'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer1.2.1.running_mean', 'encoders.lidar.backbone.encoder_layers.encoder_layer1.2.bn1.running_mean'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer1.2.1.running_var', 'encoders.lidar.backbone.encoder_layers.encoder_layer1.2.bn1.running_var'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer2.0.conv1.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer2.0.conv1.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer2.0.conv2.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer2.0.conv2.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer2.1.conv1.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer2.1.conv1.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer2.1.conv2.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer2.1.conv2.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer2.2.0.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer2.2.conv.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer2.2.1.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer2.2.bn1.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer2.2.1.bias', 'encoders.lidar.backbone.encoder_layers.encoder_layer2.2.bn1.bias'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer2.2.1.running_mean', 'encoders.lidar.backbone.encoder_layers.encoder_layer2.2.bn1.running_mean'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer2.2.1.running_var', 'encoders.lidar.backbone.encoder_layers.encoder_layer2.2.bn1.running_var'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer3.0.conv1.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer3.0.conv1.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer3.0.conv2.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer3.0.conv2.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer3.1.conv1.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer3.1.conv1.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer3.1.conv2.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer3.1.conv2.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer3.2.0.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer3.2.conv.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer3.2.1.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer3.2.bn1.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer3.2.1.bias', 'encoders.lidar.backbone.encoder_layers.encoder_layer3.2.bn1.bias'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer3.2.1.running_mean', 'encoders.lidar.backbone.encoder_layers.encoder_layer3.2.bn1.running_mean'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer3.2.1.running_var', 'encoders.lidar.backbone.encoder_layers.encoder_layer3.2.bn1.running_var'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer4.0.conv1.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer4.0.conv1.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer4.0.conv2.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer4.0.conv2.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer4.1.conv1.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer4.1.conv1.conv_block.weight'),
-                       ('encoders.lidar.backbone.encoder_layers.encoder_layer4.1.conv2.weight', 'encoders.lidar.backbone.encoder_layers.encoder_layer4.1.conv2.conv_block.weight')]
-        metadata = getattr(lid_state_dict, '_metadata', OrderedDict())
-        lid_state_dict_ = OrderedDict({})
-        for k, v in lid_state_dict.items() :
-            for p, r in revise_keys:
-                if k == p : 
-                    lid_state_dict_[r] = v
-                else :
-                    lid_state_dict_[k] = v
-                # if p == k :
-                #     if v.ndim > 1 :
-                #         v = v.permute(4, 0, 1, 2, 3)
-                #     lid_state_dict_[r] = v
-                # elif k not in p :
-                #     lid_state_dict_[k] = v
-        # Keep metadata in state_dict
-        lid_state_dict_._metadata = metadata
-        # load state_dict
-        load_state_dict(self.model.module, lid_state_dict_, strict, logger)
-
-        return checkpoint
 
 def freeze(model) :
     for param in model.parameters() :
@@ -252,17 +175,7 @@ class Fp16PruningOptimizerHook(Fp16OptimizerHook):
     def after_train_iter(self, runner):
         super().after_train_iter(runner)
         # runner.pruner.step()
-        
-def prune_to_spss_sprs(model, prune_cfg) :
-    ## TODO : only for encoder layers
-    for name, module in model.named_modules() :
-        if isinstance(module, SparseConv3d) :
-            setattr(model, name, WrapperSpatialPrunedConvDownsample(module, prune_cfg))
-        elif isinstance(module, SubMConv3d) :
-            setattr(module, name, WrapperSpatialPrunedSubmConvBlock(module, prune_cfg))
-        elif isinstance(module, SparseSequential) :
-            setattr(module, name, WrapperSparseSequentialBatchdict(module, prune_cfg))
-    return model
+
 
 # @RUNNERS.register_module()
 # class CustomSPSSPruningEpochBasedRunner(EpochBasedRunner):
