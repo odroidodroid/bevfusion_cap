@@ -310,6 +310,17 @@ class SpatialPrunedConvDownsample(spconv.SparseModule):
                 voxel_mask = voxel_importance > self.pruning_ratio
                 x.replace_feature(x_features[voxel_mask])
             out = self.conv_block(x)
+        elif self.pred_mode=="gumbel_softmax":
+            x_features = x.features
+            voxel_importance = self.compute_voxel_prob_gumbel(x_features)
+            if self.training :
+                loss_pts_softmax = self.loss_reg(voxel_importance)
+                batch_dict['loss_reg_voxel_prob'] += loss_pts_softmax
+                x.replace_feature(x_features * voxel_importance)
+            else :
+                voxel_mask = voxel_importance > self.pruning_ratio
+                x.replace_feature(x_features[voxel_mask])
+            out = self.conv_block(x)
         elif self.pred_mode=="perspective_attn":
             x_features = x.features
             x_coords = x.indices

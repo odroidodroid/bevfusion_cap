@@ -12,13 +12,12 @@
 
 1-2. run tools/create_data.py
 
-### 2. Train LiDAR-only
+### 2. Train
 
-2-1. modify config : configs/nuscenes/det/transfusion/secfpn/lidar/voxelnet_prune_0.5_0.5.yaml
+2-1. if you want to prune camera and lidar both, use command
 
-    max_epochs : 12
-    runner : 
-	    type : CustomSPSSPruningEpochBasedRunner
-	    max_epochs : ${max_epochs}
+    torchpack dist-run -np 1 python tools/prune_both.py configs/nuscenes/det/transfusion/secfpn/camera+lidar/resnet50/prune_both.yaml
 
-2-2. train with the config
+2-2. if you want to train camera without pruning and prune lidar, use command
+
+    torchpack dist-run -np 1 python tools/train.py configs/nuscenes/det/transfusion/secfpn/camera+lidar/resnet50/voxel_prune.yaml
