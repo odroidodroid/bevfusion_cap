@@ -17,14 +17,7 @@ from mmdet3d.utils import get_root_logger, convert_sync_batchnorm, recursive_eva
 from prune.prune_model import prune_model
 from prune.pruner import get_pruner
 
-import wandb
-wandb.init(project='bevfusion_cap')
 
-# import debugpy
-# debugpy.listen(5516)
-# print("Wait for debugger...")
-# debugpy.wait_for_client()
-# print("Debugger attached")
 
 def main():
     dist.init()
@@ -39,11 +32,12 @@ def main():
     configs.load(args.config, recursive=True)
     configs.update(opts)
 
-    cfg = Config(recursive_eval(configs), filename=args.config)
+    # cfg = Config(recursive_eval(configs), filename=args.config)
     
     configs.load(args.prune_config, recursive=True)
     # configs.update(opt if opt.startswith("prune_config") else None for opt in opts)
     prune_cfg = Config(recursive_eval(configs), filename=args.prune_config)
+    cfg = Config(recursive_eval(configs), filename=args.config)
 
     torch.backends.cudnn.benchmark = cfg.cudnn_benchmark
     torch.cuda.set_device(dist.local_rank())

@@ -4,11 +4,10 @@ import warnings
 from collections import OrderedDict
 
 import torch
-
+import torch.nn.utils.prune as prune 
 import mmcv
 import prune.torch_pruning as tp
 from mmcv.parallel import MMDistributedDataParallel
-from mmcv.runner import EpochBasedRunner, _load_checkpoint, load_state_dict
 from mmcv.runner.builder import RUNNERS
 from mmcv.runner.hooks import HOOKS, Fp16OptimizerHook
 from mmcv.runner.utils import get_host_info
@@ -121,38 +120,22 @@ class CustomPruningEpochBasedRunner(CustomEpochBasedRunner):
 
     def prune(self, dataloaders, **kwargs) :
         data = next(iter(dataloaders[0]))
-        self.logger.info(f"Camera pruning target ratio : {self.prune_cfg.camera.target_ratio}")
+        self.model.cuda()
+        self.logger.info(f"Camera pruning target ratio : {self.prune_cfg.target_ratio}")
         camera_inputs = data['img'].data[0][0].cuda()
-        base_ops, base_params = tp.utils.count_ops_and_params(self.model.module.encoders.camera.backbone, camera_inputs)
+        camera_backbone = self.model.module.encoders.camera.backbone
+        base_ops, base_params = tp.utils.count_ops_and_params(camera_backbone, camera_inputs)
         
-        prune_to_target_ratio(self.pruner, self.model.module.encoders.camera.backbone, self.prune_cfg.camera.target_ratio, camera_inputs)
-        pruned_ops, pruned_size = tp.utils.count_ops_and_params(self.model.module.encoders.camera.backbone, camera_inputs)
+        prune_to_target_ratio(self.pruner, camera_backbone, self.prune_cfg.target_ratio, camera_inputs)
+        pruned_ops, pruned_size = tp.utils.count_ops_and_params(camera_backbone, camera_inputs)
         
         self.logger.info("="*16)
         self.logger.info("After camera pruning...")
         self.logger.info("Params: {:.2f} M => {:.2f} M ({:.2f}%)".format(base_params / 1e6, pruned_size / 1e6, pruned_size / base_params * 100))
         self.logger.info("Ops: {:.2f} G => {:.2f} G ({:.2f}%, {:.2f}X )".format(base_ops / 1e9, pruned_ops / 1e9, pruned_ops / base_ops * 100, base_ops / pruned_ops))
-
-        self.model.to('cuda')
-        outputs = self.model.module.encoders.camera.backbone(camera_inputs)
-        self.model.module.re_init(outputs)
-
-        self.logger.info(f"Lidar pruning target ratio : {self.prune_cfg.lidar.pruning_ratio}")
-        lidar_inputs = data['points'].data[0][0].cuda()
-        voxelize = Voxelization(voxel_size=[0.075, 0.075, 0.2],
-                                point_cloud_range=[-54.0, -54.0, -5.0, 54.0, 54.0, 3.0],
-                                max_num_points=10)
-        feats, coords, sizes = voxelize(lidar_inputs)
-        batch_size = coords[-1, 0] + 1
-        base_ops, base_params = tp.utils.count_ops_and_params(self.model.module.encoders.lidar.backbone, (feats, coords, batch_size))
-
-
-
-        # self.logger.info("="*16)
-        # self.logger.info("After lidar pruning...")
-        # self.logger.info("Params: {:.2f} M => {:.2f} M ({:.2f}%)".format(base_params / 1e6, pruned_size / 1e6, pruned_size / base_params * 100))
-        # self.logger.info("Ops: {:.2f} G => {:.2f} G ({:.2f}%, {:.2f}X )".format(base_ops / 1e9, pruned_ops / 1e9, pruned_ops / base_ops * 100, base_ops / pruned_ops))
-
+        camera_backbone = camera_backbone.cuda()
+        camera_outputs = camera_backbone(camera_inputs)
+        self.model.module.re_init(camera_outputs)
         self.model = MMDistributedDataParallel(self.model.module.cuda(),
                                         device_ids=[torch.cuda.current_device()],
                                         broadcast_buffers=False,

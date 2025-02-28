@@ -1,0 +1,42 @@
+{
+	"name": "bevfusion_cap",
+	"build": {
+		"dockerfile": "Dockerfile",
+		"args": {
+			"USERNAME": "${localEnv:USER}",
+		}
+	},
+	"containerEnv": {
+		"DISPLAY": "",
+		"XAUTHORITY": "${localEnv:XAUTHORITY}",
+		"NVIDIA_VISIBLE_DEVICES": "all",
+		"NVIDIA_DRIVER_CAPABILITIES": "compute,utility,graphics",
+		"QT_X11_NO_MITSHM": "1",
+	},
+	"mounts": [
+		"source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind,consistency=cached",
+		"source=/data,target=/data,type=bind", // for local data mount
+		"source=/etc/passwd,target=/etc/passwd,type=bind",
+		"source=/etc/group,target=/etc/group,type=bind"
+	],
+	"runArgs": [
+		"--gpus=all",
+		"--network=host",
+		"--ipc=host",
+		"--pid=host",
+		"--uts=host",
+		"--name", "bevfusion_cap-${localEnv:USER}-test2"
+	],
+	"settings": {
+		"editor.detectIndentation": false,
+		"editor.insertSpaces": false,
+	},
+	"extensions": [
+		"ms-python.python",
+		"oderwat.indent-rainbow",
+		"analytic-signal.preview-html",
+		"mhutchie.git-graph",
+	],
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace/bevfusion_cap,type=bind,consistency=cached",
+	"workspaceFolder": "/workspace/bevfusion_cap",
+}

@@ -81,6 +81,14 @@ class BEVFusion(Base3DFusionModel):
                     self.loss_scale[name] = 1.0
 
         self.init_weights()
+    
+    def re_init(self, outputs) :
+        pruned_channels = [outputs[i].shape[1] for i in range(len(outputs))]
+        out_channels = self.encoders["camera"]["neck"].out_channels
+        num_outs = self.encoders["camera"]["neck"].num_outs
+        self.encoders["camera"]["neck"].__init__(pruned_channels,
+                                                out_channels,
+                                                num_outs)
 
     def init_weights(self) -> None:
         if "camera" in self.encoders:

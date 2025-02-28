@@ -146,6 +146,6 @@ def prune_model(
     print("Pruning model...")
     runner.prune(data_loaders)
     print("Finetuning...")
-    runner.run(data_loaders, [("finetune", 1)])
+    runner.run(data_loaders, [("train", 1)])
 
     
