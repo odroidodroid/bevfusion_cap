@@ -1,0 +1,42 @@
+# prune_config :
+#### runner ####
+freezed_finetune : 'camera'
+freeze_epoch : 1
+#### lidar ####
+lidar :
+backbone :
+  type: VoxelPruningSparseEncoder
+  in_channels: 5
+  sparse_shape: [1440, 1440, 41]
+  downsample_pruning_ratio : [0.5, 0.5, 0.5]
+  pruning_ratio : [[0.5, 0.5], [0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]
+  downsampling_pruning_mode : topk
+  pruning_mode : topk
+  output_channels: 128
+  encoder_channels:
+    - [16, 16, 32]
+    - [32, 32, 64]
+    - [64, 64, 128]
+    - [128, 128]
+  encoder_paddings:
+    - [0, 0, 1]
+    - [0, 0, 1]
+    - [0, 0, [1, 1, 0]]
+    - [0, 0]
+
+#### camera ####
+camera :
+  target_ratio : 0.5
+  data_dependendcy : False
+  sparsity_learning : False
+  method : l1
+  global_pruning : False
+  soft_keeping_ratio : 0.0
+  reg : 1e-4
+  delta_reg : 1e-4
+  max_pruning_ratio : 1.0
+  sl_epochs : None
+  sl_resume : None
+  sl_lr : None
+  sl_lr_step_size : None
+  sl_lr_warmup_epochs : None
